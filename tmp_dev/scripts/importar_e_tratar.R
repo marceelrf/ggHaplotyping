@@ -18,6 +18,7 @@ data_list <-
 names(data_list) <- sheets
 
 
-data_list %>%
+data_list <-
+  data_list %>%
   map(\(x) x %>% mutate(across(where(is.character),
                                ~ na_if(., "none"))))
