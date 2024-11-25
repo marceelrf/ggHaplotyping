@@ -1,5 +1,6 @@
-#install.packages("pacman")
-#install.packages("shinyalert")
+if (!requireNamespace("pacman", quietly = TRUE)) {
+  install.packages("pacman", repos = "http://cran.us.r-project.org")
+}
 library(pacman)
 
 
@@ -132,12 +133,15 @@ processar_gerar_grafico <- function(input_file) {
           legend.title = element_blank(),
           legend.position = "top",
           strip.text = element_blank(),
-          legend.text = element_text(size = 18)) +
+          legend.text = element_text(size = 18),
+    plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
     geom_label(aes(x = -1.5, 
                    label = Sample_Haplo),  # Usa a nova coluna Sample_Haplo para mostrar Sample e Haplo
-               size = 5.5, 
+               size = 3.8,  # Reduz o tamanho do texto
                fill = NA,  # Remove a cor de fundo da caixa do nome da amostra
-               show.legend = FALSE)  # Adiciona rótulo com o nome da amostra e haplótipo  
+               show.legend = FALSE,
+               nudge_x = 1.3)  # Ajusta a posição do texto para a direita, se necessário
+  
   
   plot_alleles <- plot_data_5_samples %>%
     filter(Presence == 1) %>%  # Filtra os dados para incluir apenas onde Presence == 1
@@ -174,30 +178,44 @@ processar_gerar_grafico <- function(input_file) {
           legend.title = element_blank(),
           legend.position = "top",
           strip.text = element_blank(),
-          legend.text = element_text(size = 18)) +
+          legend.text = element_text(size = 18),
+          plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
     geom_label(aes(x = -1.5, 
                    label = Sample_Haplo),  # Usa a nova coluna Sample_Haplo para mostrar Sample e Haplo
-               size = 5.5, 
+               size = 3.8,  # Reduz o tamanho do texto
                fill = NA,  # Remove a cor de fundo da caixa do nome da amostra
-               show.legend = FALSE)  # Adiciona rótulo com o nome da amostra e haplótipo 
+               show.legend = FALSE,
+               nudge_x = 1.3)  # Ajusta a posição do texto para a direita, se necessário
+  
   return(plots = list(plot_presence = plot_presence,plot_alleles = plot_alleles))
 }
 
 
 ui <- fluidPage(
-  titlePanel("KIR Haplotypes App"), #nome do app
+  tags$div(
+    style = "display: flex; align-items: center; margin-bottom: 10px;",
+    tags$h1("KIR Haplotypes App", style = "margin-right: 15px;"),
+    tags$img(src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSFDRAnTfp1qWUVX1BaXrlLze1pDJImh3nr7A&s", 
+             height = "75px")
+  ),
   sidebarLayout( 
     sidebarPanel( #criar o painel do lado esquerdo
       width = 3,  # Ajusta o tamanho do painel lateral (3 é a largura em colunas do layout Bootstrap)
-      fileInput("file1", "Choose a data file", accept = c(".txt"), width = "100%"),  # Largura do painel
+      fileInput("file1", "Upload a data file", accept = c(".txt"), width = "100%"),  # Largura do painel
       actionButton("goButton", "Generate Graph", style = "width: 100%;"),
       tags$hr(), #add uma linha horizontal
+      
       radioButtons("select", "Select which information you want:",  #montar a caixinha para selecionar
                    choices = c("Only Presence", "With the alleles"),
                    selected = "Only Presence"), # "Plot Presence" é a opção selecionada por padrão
       tags$hr(), #add uma linha horizontal
-      textInput(inputId = "txt", label = "Define the title of the haplotype:", value = "KIR haplotypes (h1 and h2) for each sample") #caixinha para o usr escrever o titulo
-    ),
+      
+      textInput(inputId = "txt", label = "Define the title of the haplotype:", value = "KIR haplotypes (h1 and h2) for each sample"), #caixinha para o usr escrever o titulo
+      
+      tags$hr(),
+      
+      downloadButton("savePlot", "Save Current Plot", style = "width: 100%;")
+      ),
     
     mainPanel( #painel principal
       h3(textOutput("txt", container = span)), #escreve o titulo
@@ -217,16 +235,16 @@ server <- function(input, output)
     req(input$file1)  # Verifica se o arquivo foi carregado
     
     # Iniciar a barra de progresso
-    withProgress(message = 'Verificando colunas...', value = 0, {
+    withProgress(message = 'Checking columns...', value = 0, {
       
       # Atualiza o progresso para 50% (metade do processo)
-      incProgress(0.5, detail = "Processando...")  
+      incProgress(0.5, detail = "Processing ...")  
       
       # Ler o arquivo
       file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t", check.names = TRUE)
       
       # Atualiza o progresso para 30% (arquivo lido)
-      incProgress(0.2, detail = "Lendo o arquivo...")
+      incProgress(0.2, detail = "Reading the file...")
       
       # Identificar as colunas que começam com "KIR" e seguem o padrão esperado
       # Ajuste da expressão regular para pegar as colunas no formato 'KIR3DL3..h1.' ou similar
@@ -255,17 +273,17 @@ server <- function(input, output)
       }
       
       # Atualiza o progresso para 50% (colunas verificadas)
-      incProgress(0.2, detail = "Verificando colunas completado...")    
+      incProgress(0.2, detail = "Completed checking the columns...")    
       
       # Gerar gráficos após a verificação das colunas
-      incProgress(0.5, detail = "Gerando gráficos...")
+      incProgress(0.5, detail = "Creating graphics...")
       plots <- processar_gerar_grafico(input$file1$datapath)
       
       # Armazenar os gráficos
       stored_plots(plots)
       
       # Finaliza a barra de progresso
-      incProgress(0.2, detail = "Processamento completo")
+      incProgress(0.2, detail = "Complete processing")
       
     })  
     
@@ -279,6 +297,17 @@ server <- function(input, output)
     
     
   })
+  
+  content = function(file) {
+    plots <- stored_plots()
+    if (!is.null(plots)) {
+      if (input$select == "With the alleles") {
+        ggsave(file, plot = plots$plot_alleles, width = 11.5, height = 7, bg = "white")
+      } else {
+        ggsave(file, plot = plots$plot_presence, width = 11.5, height = 7, bg = "white")
+      }
+    }}
+  
   #----------------titulo do grafico
   output$txt <- renderText({
     req(input$txt)  # Só exibe se o campo de entrada não estiver vazio
@@ -293,3 +322,4 @@ server <- function(input, output)
 shinyApp(ui = ui, server = server)
 
 
+# 
