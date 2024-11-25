@@ -1,5 +1,11 @@
-install.packages("pacman")
+# Load pacman package
+if (!requireNamespace("pacman", quietly = TRUE)) {
+  
+  install.packages("pacman",
+                   repos = "http://cran.us.r-project.org")
+}
 library(pacman)
+
 
 # List of packages to load
 packages <- c("shiny",
