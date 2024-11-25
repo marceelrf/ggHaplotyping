@@ -298,15 +298,25 @@ server <- function(input, output)
     
   })
   
-  content = function(file) {
-    plots <- stored_plots()
-    if (!is.null(plots)) {
+  # Botão para salvar o gráfico exibido atualmente
+  output$savePlot <- downloadHandler(
+    filename = function() {
       if (input$select == "With the alleles") {
-        ggsave(file, plot = plots$plot_alleles, width = 11.5, height = 7, bg = "white")
+        return("alleles_plot.png")
       } else {
-        ggsave(file, plot = plots$plot_presence, width = 11.5, height = 7, bg = "white")
+        return("presence_plot.png")
       }
-    }}
+    },
+    content = function(file) {
+      plots <- stored_plots()
+      if (!is.null(plots)) {
+        if (input$select == "With the alleles") {
+          ggsave(file, plot = plots$plot_alleles, width = 11.5, height = 7, bg = "white")
+        } else {
+          ggsave(file, plot = plots$plot_presence, width = 11.5, height = 7, bg = "white")
+        }
+      }})
+
   
   #----------------titulo do grafico
   output$txt <- renderText({
@@ -317,7 +327,8 @@ server <- function(input, output)
       return(NULL)  # Caso contrário, não exibe nada
     }
   })
-}
+
+}  
 
 shinyApp(ui = ui, server = server)
 
