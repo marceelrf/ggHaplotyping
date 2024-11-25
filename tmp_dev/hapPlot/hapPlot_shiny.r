@@ -1,9 +1,5 @@
-# Load pacman package
-if (!requireNamespace("pacman", quietly = TRUE)) {
-  
-  install.packages("pacman",
-                   repos = "http://cran.us.r-project.org")
-}
+#install.packages("pacman")
+#install.packages("shinyalert")
 library(pacman)
 
 
@@ -13,14 +9,16 @@ packages <- c("shiny",
               "ggplot2", 
               "plotly",
               "gggenes",
-              "viridis")
+              "viridis",
+              "reshape2",
+              "shinyalert")
 
 # Function to install and load packages if missing
 p_load(packages, character.only = TRUE)
 
 # Função para processar o arquivo e gerar o gráfico
 processar_gerar_grafico <- function(input_file) {
-
+  
   # Criar um vetor de cores para cada gene
   gene_colors <- c("KIR2DL1" = "#CDB5CD", "KIR2DL2" = "#ADFF2F", 
                    "KIR2DL3" = "#436EEE", "KIR2DL4" = "#8B8B7A", 
@@ -99,7 +97,7 @@ processar_gerar_grafico <- function(input_file) {
     ) %>% 
     mutate(Gene = factor(Gene, levels = unique(Gene)))
   
- plot_presence <- plot_data_5_samples %>%
+  plot_presence <- plot_data_5_samples %>%
     filter(Presence == 1) %>%  # Filtra os dados para incluir apenas onde Presence == 1
     mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
                           "H1", "H2"),
@@ -133,14 +131,15 @@ processar_gerar_grafico <- function(input_file) {
           axis.text = element_blank(),
           legend.title = element_blank(),
           legend.position = "top",
-          strip.text = element_blank()) +
+          strip.text = element_blank(),
+          legend.text = element_text(size = 18)) +
     geom_label(aes(x = -1.5, 
                    label = Sample_Haplo),  # Usa a nova coluna Sample_Haplo para mostrar Sample e Haplo
                size = 5.5, 
                fill = NA,  # Remove a cor de fundo da caixa do nome da amostra
                show.legend = FALSE)  # Adiciona rótulo com o nome da amostra e haplótipo  
   
- plot_alleles <- plot_data_5_samples %>%
+  plot_alleles <- plot_data_5_samples %>%
     filter(Presence == 1) %>%  # Filtra os dados para incluir apenas onde Presence == 1
     mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
                           "H1", "H2"),
@@ -174,13 +173,14 @@ processar_gerar_grafico <- function(input_file) {
           axis.text = element_blank(),
           legend.title = element_blank(),
           legend.position = "top",
-          strip.text = element_blank()) +
+          strip.text = element_blank(),
+          legend.text = element_text(size = 18)) +
     geom_label(aes(x = -1.5, 
                    label = Sample_Haplo),  # Usa a nova coluna Sample_Haplo para mostrar Sample e Haplo
                size = 5.5, 
                fill = NA,  # Remove a cor de fundo da caixa do nome da amostra
                show.legend = FALSE)  # Adiciona rótulo com o nome da amostra e haplótipo 
- return(plots = list(plot_presence = plot_presence,plot_alleles = plot_alleles))
+  return(plots = list(plot_presence = plot_presence,plot_alleles = plot_alleles))
 }
 
 
@@ -192,9 +192,9 @@ ui <- fluidPage(
       fileInput("file1", "Choose a data file", accept = c(".txt"), width = "100%"),  # Largura do painel
       actionButton("goButton", "Generate Graph", style = "width: 100%;"),
       tags$hr(), #add uma linha horizontal
-      selectInput("select", "Select which information you want",  #montar a caixinha para selecionar
-                  choices = c("Only Presence", "With the alleles"),
-                  selected = "Only Presence"), # "Plot Presence" é a opção selecionada por padrão
+      radioButtons("select", "Select which information you want:",  #montar a caixinha para selecionar
+                   choices = c("Only Presence", "With the alleles"),
+                   selected = "Only Presence"), # "Plot Presence" é a opção selecionada por padrão
       tags$hr(), #add uma linha horizontal
       textInput(inputId = "txt", label = "Define the title of the haplotype:", value = "KIR haplotypes (h1 and h2) for each sample") #caixinha para o usr escrever o titulo
     ),
@@ -206,45 +206,90 @@ ui <- fluidPage(
   )
 )
 
-server <- function(input, output) 
+
+server <- function(input, output)
 {
   # Armazenar a lista de gráficos reativamente
   stored_plots <- reactiveVal(NULL)  # Para armazenar os gráficos
   
- # Processa o arquivo ao clicar no botão
-  observeEvent(input$goButton,
-               {
-                 req(input$file1)
-                 
-                 # Ler o arquivo
-                 file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t")
-                 plots <- processar_gerar_grafico(input$file1$datapath)
-                 stored_plots(plots)
-                 
-                 #coloca o titulo
-                 output$txt <- renderText({
-                   input$txt
-                 })
-                 
-                 # Renderiza o gráfico com base na opção selecionada
-                 output$grafico <- renderPlot({
-                   # Verifique se a lista de gráficos está vazia ou se não foi gerada
-                   plots <- stored_plots()
-                   
-                   if (is.null(plots)) {
-                     return(NULL)  # Caso não haja gráficos, não renderiza nada
-                   }
-                   
-                   # Se o usuário selecionou "With the alleles", exibe o gráfico de alelos
-                   if (input$select == "With the alleles") {
-                     return(plots$plot_alleles)  # Exibe o gráfico de alelos
-                   } else {
-                     # Caso contrário, exibe o gráfico de presença
-                     return(plots$plot_presence)  # Exibe o gráfico de presença
-                   }
-               })
-               })
+  observeEvent(input$goButton, {
+    
+    req(input$file1)  # Verifica se o arquivo foi carregado
+    
+    # Iniciar a barra de progresso
+    withProgress(message = 'Verificando colunas...', value = 0, {
+      
+      # Atualiza o progresso para 50% (metade do processo)
+      incProgress(0.5, detail = "Processando...")  
+      
+      # Ler o arquivo
+      file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t", check.names = TRUE)
+      
+      # Atualiza o progresso para 30% (arquivo lido)
+      incProgress(0.2, detail = "Lendo o arquivo...")
+      
+      # Identificar as colunas que começam com "KIR" e seguem o padrão esperado
+      # Ajuste da expressão regular para pegar as colunas no formato 'KIR3DL3..h1.' ou similar
+      kir_columns <- grep("^KIR\\d+[A-Z]*\\.\\.h[12]\\.$", names(file_data), value = TRUE)
+      
+      # Definir as colunas obrigatórias
+      required_columns <- c("Sample", kir_columns)
+      
+      # Checar se todas as colunas obrigatórias estão no arquivo
+      missing_columns <- setdiff(required_columns, names(file_data))
+      
+      # Se as colunas estiverem faltando, exibe o alerta
+      if (length(missing_columns) > 0) 
+      {
+        # Cria uma lista de colunas faltantes para exibir no warning
+        missing_columns_text <- paste(missing_columns, collapse = ", ")
+        
+        shinyalert(
+          title = "Error: Columns Missing",
+          text = paste("The following columns are missing from the file:", missing_columns_text),
+          type = "warning",
+          confirmButtonCol = "#DD6B55",
+          confirmButtonText = "OK"
+        )
+        return() # Interrompe a execução caso as colunas estejam faltando
+      }
+      
+      # Atualiza o progresso para 50% (colunas verificadas)
+      incProgress(0.2, detail = "Verificando colunas completado...")    
+      
+      # Gerar gráficos após a verificação das colunas
+      incProgress(0.5, detail = "Gerando gráficos...")
+      plots <- processar_gerar_grafico(input$file1$datapath)
+      
+      # Armazenar os gráficos
+      stored_plots(plots)
+      
+      # Finaliza a barra de progresso
+      incProgress(0.2, detail = "Processamento completo")
+      
+    })  
+    
+    output$grafico <- renderPlot({
+      if (input$select == "With the alleles") {
+        return(stored_plots()$plot_alleles)  # Exibe o gráfico de alelos
+      } else {
+        return(stored_plots()$plot_presence)  # Exibe o gráfico de presença
+      }
+    })
+    
+    
+  })
+  #----------------titulo do grafico
+  output$txt <- renderText({
+    req(input$txt)  # Só exibe se o campo de entrada não estiver vazio
+    if (input$txt != "") {
+      return(input$txt)  # Exibe o título digitado
+    } else {
+      return(NULL)  # Caso contrário, não exibe nada
+    }
+  })
 }
 
-
 shinyApp(ui = ui, server = server)
+
+
