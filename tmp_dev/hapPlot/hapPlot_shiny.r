@@ -217,8 +217,11 @@ ui <- fluidPage(
       tags$hr(), #add uma linha horizontal
       
       selectInput("Sample",
-                  "Select a sample:",
-                  choices = NULL),
+                 "Select a sample:",
+                  choices = NULL,
+                  multiple = TRUE),
+      
+     
       
       tags$hr(), #add uma linha horizontal
       textInput(inputId = "txt", label = "Define the title of the haplotype:", value = "KIR haplotypes (h1 and h2) for each sample"), #caixinha para o usr escrever o titulo
@@ -301,7 +304,7 @@ server <- function(input, output)
       # Atualiza a lista suspensa (selectInput) com as amostras
       updateSelectInput(inputId = "Sample", 
                         choices = stored_plots()$list_samples,
-                        selected = NULL)
+                        selected = stored_plots()$list_samples[1])
       
       # Finaliza a barra de progresso
       incProgress(0.2, detail = "Complete processing")
