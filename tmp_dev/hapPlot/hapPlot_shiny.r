@@ -97,7 +97,9 @@ processar_gerar_grafico <- function(input_file) {
       end = xpos + 1
     ) %>% 
     mutate(Gene = factor(Gene, levels = unique(Gene)))
-  
+
+#---------GRAFICO DE PRESENCA  
+    
   plot_presence <- plot_data_5_samples %>%
     filter(Presence == 1) %>%  # Filtra os dados para incluir apenas onde Presence == 1
     mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
@@ -142,7 +144,8 @@ processar_gerar_grafico <- function(input_file) {
                show.legend = FALSE,
                nudge_x = 1.3)  # Ajusta a posição do texto para a direita, se necessário
   
-  
+
+  #---------GRAFICO DE ALELOS
   plot_alleles <- plot_data_5_samples %>%
     filter(Presence == 1) %>%  # Filtra os dados para incluir apenas onde Presence == 1
     mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
@@ -186,8 +189,11 @@ processar_gerar_grafico <- function(input_file) {
                fill = NA,  # Remove a cor de fundo da caixa do nome da amostra
                show.legend = FALSE,
                nudge_x = 1.3)  # Ajusta a posição do texto para a direita, se necessário
+
   
-  return(plots = list(plot_presence = plot_presence,plot_alleles = plot_alleles))
+    return(plots = list(plot_presence = plot_presence,
+                        plot_alleles = plot_alleles,
+                        list_samples = table$Sample))
 }
 
 
@@ -210,6 +216,11 @@ ui <- fluidPage(
                    selected = "Only Presence"), # "Plot Presence" é a opção selecionada por padrão
       tags$hr(), #add uma linha horizontal
       
+      selectInput("Sample",
+                  "Select a sample:",
+                  choices = NULL),
+      
+      tags$hr(), #add uma linha horizontal
       textInput(inputId = "txt", label = "Define the title of the haplotype:", value = "KIR haplotypes (h1 and h2) for each sample"), #caixinha para o usr escrever o titulo
       
       tags$hr(),
@@ -220,6 +231,8 @@ ui <- fluidPage(
     mainPanel( #painel principal
       h3(textOutput("txt", container = span)), #escreve o titulo
       plotOutput("grafico", height = "800px", width = "100%")  # Tamanho do gráfico
+    
+      
     )
   )
 )
@@ -229,6 +242,8 @@ server <- function(input, output)
 {
   # Armazenar a lista de gráficos reativamente
   stored_plots <- reactiveVal(NULL)  # Para armazenar os gráficos
+  
+  samples <- reactive(NULL)
   
   observeEvent(input$goButton, {
     
@@ -277,10 +292,16 @@ server <- function(input, output)
       
       # Gerar gráficos após a verificação das colunas
       incProgress(0.5, detail = "Creating graphics...")
+      
       plots <- processar_gerar_grafico(input$file1$datapath)
       
       # Armazenar os gráficos
       stored_plots(plots)
+
+      # Atualiza a lista suspensa (selectInput) com as amostras
+      updateSelectInput(inputId = "Sample", 
+                        choices = stored_plots()$list_samples,
+                        selected = NULL)
       
       # Finaliza a barra de progresso
       incProgress(0.2, detail = "Complete processing")
@@ -294,9 +315,11 @@ server <- function(input, output)
         return(stored_plots()$plot_presence)  # Exibe o gráfico de presença
       }
     })
-    
+
     
   })
+  
+
   
   # Botão para salvar o gráfico exibido atualmente
   output$savePlot <- downloadHandler(
