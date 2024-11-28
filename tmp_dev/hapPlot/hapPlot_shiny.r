@@ -17,27 +17,23 @@ packages <- c("shiny",
 # Function to install and load packages if missing
 p_load(packages, character.only = TRUE)
 
-# Função para processar o arquivo e gerar o gráfico
-processar_gerar_grafico <- function(input_file) {
-  
-  # Criar um vetor de cores para cada gene
-  gene_colors <- c("KIR2DL1" = "#CDB5CD", "KIR2DL2" = "#ADFF2F", 
-                   "KIR2DL3" = "#436EEE", "KIR2DL4" = "#8B8B7A", 
-                   "KIR2DL5AB" = "#A52A2A", "KIR2DP1" = "#C1FFC1", 
-                   "KIR2DS1" = "#00F5FF", "KIR2DS2" = "#EE6A50", 
-                   "KIR2DS3" = "#CDC673", "KIR2DS4" = "orange", 
-                   "KIR2DS5" = "#EEA2AD", "KIR3DL1" = "#FF83FA", 
-                   "KIR3DL2" = "#AB82FF", "KIR3DL3" = "#B0C4DE", 
-                   "KIR3DP1" = "#FFFF00", "KIR3DS1" = "#008B00")
-  
-  # Criar um mapeamento de cores para 0 e 1 para cada gene
-  color_mapping <- unlist(sapply(names(gene_colors), function(gene) {
-    c(`1` = gene_colors[[gene]], `0` = "white")
-  }))
-  
-  # Ler o arquivo de entrada
+# Criar um vetor de cores para cada gene
+gene_colors <- c("KIR2DL1" = "#CDB5CD", "KIR2DL2" = "#ADFF2F", 
+                 "KIR2DL3" = "#436EEE", "KIR2DL4" = "#8B8B7A", 
+                 "KIR2DL5AB" = "#A52A2A", "KIR2DP1" = "#C1FFC1", 
+                 "KIR2DS1" = "#00F5FF", "KIR2DS2" = "#EE6A50", 
+                 "KIR2DS3" = "#CDC673", "KIR2DS4" = "orange", 
+                 "KIR2DS5" = "#EEA2AD", "KIR3DL1" = "#FF83FA", 
+                 "KIR3DL2" = "#AB82FF", "KIR3DL3" = "#B0C4DE", 
+                 "KIR3DP1" = "#FFFF00", "KIR3DS1" = "#008B00")
+
+color_mapping <- unlist(sapply(names(gene_colors), function(gene) {
+  c(`1` = gene_colors[[gene]], `0` = "white")
+}))
+
+prepared_data <- function(input_file)
+{
   table <- read.table(input_file, h = T, sep = "\t")
-  
   # Filtrando as colunas necessárias para o app -H1 e -H2 de cada amostra
   table_filtered <- table %>% 
     select(Sample, matches("^KIR.*h[12]")) %>%  # Seleciona "Sample" e colunas que começam com "KIR" e contêm "h1" e "h2"
@@ -70,8 +66,15 @@ processar_gerar_grafico <- function(input_file) {
   
   combined_data <- left_join(presence_long, alleles_long, by = c("Sample", "Gene", "Haplo"))
   
-  plot_data_5_samples <- combined_data %>%
-    filter(Sample %in% head(unique(combined_data$Sample), 5)) %>%
+  return(combined_data)
+}
+
+
+gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
+  
+{
+  plot_data_samples <- combined_data %>%
+    filter(Sample %in% selected_samples) %>%
     mutate(Gene_Haplo = paste(Gene, Haplo, sep = "_")) %>%
     mutate(
       xpos = case_when(
@@ -97,103 +100,101 @@ processar_gerar_grafico <- function(input_file) {
       end = xpos + 1
     ) %>% 
     mutate(Gene = factor(Gene, levels = unique(Gene)))
-
-#---------GRAFICO DE PRESENCA  
-    
-  plot_presence <- plot_data_5_samples %>%
-    filter(Presence == 1) %>%  # Filtra os dados para incluir apenas onde Presence == 1
-    mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
-                          "H1", "H2"),
-           Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%  # Cria uma nova coluna combinando Sample e Haplo
-    ggplot(aes(xmin = start,
-               xmax = end, 
-               y = Sample, 
-               fill = Gene)) +
-    geom_segment(aes(x = 0.9, xend = 18.5),  # Linha horizontal 
-                 color = "black", size = 0.5) +
-    geom_rect(aes(xmin = start - 0.2,  # Alarga 0.6 à esquerda
-                  xmax = end + 0.2,    # Alarga 0.6 à direita
-                  ymin = as.numeric(Sample) - 0.01,  # Altura da caixa
-                  ymax = as.numeric(Sample) + 0.01),  # Altura da caixa
-              color = "black", 
-              linewidth = 0.5) +
-    # geom_gene_label(aes(label = Alelo),
-    #                size = 20) +  # Ajusta o tamanho do texto no rótulo
-    facet_wrap(Sample ~ Haplo, 
-               scales = "free_y", 
-               ncol = 1) +  # Facetar por amostra e haplótipo (H1 e H2) em linhas
-    scale_fill_manual(values = gene_colors) +
-    theme_minimal() +
-    guides(fill = guide_legend(nrow = 2), ncol = 2) +  # Deixa os itens da legenda na horizontal
-    labs(x = "Genes", 
-         y = "Sample", 
-         title = "") +
-    theme(panel.grid.major = element_blank(), 
-          panel.grid.minor = element_blank(),
-          axis.title = element_blank(),
-          axis.text = element_blank(),
-          legend.title = element_blank(),
-          legend.position = "top",
-          strip.text = element_blank(),
-          legend.text = element_text(size = 18),
-    plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
-    geom_label(aes(x = -1.5, 
-                   label = Sample_Haplo),  # Usa a nova coluna Sample_Haplo para mostrar Sample e Haplo
-               size = 3.8,  # Reduz o tamanho do texto
-               fill = NA,  # Remove a cor de fundo da caixa do nome da amostra
-               show.legend = FALSE,
-               nudge_x = 1.3)  # Ajusta a posição do texto para a direita, se necessário
   
-
-  #---------GRAFICO DE ALELOS
-  plot_alleles <- plot_data_5_samples %>%
-    filter(Presence == 1) %>%  # Filtra os dados para incluir apenas onde Presence == 1
-    mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
-                          "H1", "H2"),
-           Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%  # Cria uma nova coluna combinando Sample e Haplo
-    ggplot(aes(xmin = start,
-               xmax = end, 
-               y = Sample, 
-               fill = Gene)) +
-    geom_segment(aes(x = 0.9, xend = 18.5),  # Linha horizontal 
-                 color = "black", size = 0.5) +
-    geom_rect(aes(xmin = start - 0.2,  # Alarga 0.6 à esquerda
-                  xmax = end + 0.2,    # Alarga 0.6 à direita
-                  ymin = as.numeric(Sample) - 0.01,  # Altura da caixa
-                  ymax = as.numeric(Sample) + 0.01),  # Altura da caixa
-              color = "black", 
-              linewidth = 0.5) +
-    geom_gene_label(aes(label = Alelo),
-                    size = 20) +  # Ajusta o tamanho do texto no rótulo
-    facet_wrap(Sample ~ Haplo, 
-               scales = "free_y", 
-               ncol = 1) +  # Facetar por amostra e haplótipo (H1 e H2) em linhas
-    scale_fill_manual(values = gene_colors) +
-    theme_minimal() +
-    guides(fill = guide_legend(nrow = 2), ncol = 2) +  # Deixa os itens da legenda na horizontal
-    labs(x = "Genes", 
-         y = "Sample", 
-         title = "") +
-    theme(panel.grid.major = element_blank(), 
-          panel.grid.minor = element_blank(),
-          axis.title = element_blank(),
-          axis.text = element_blank(),
-          legend.title = element_blank(),
-          legend.position = "top",
-          strip.text = element_blank(),
-          legend.text = element_text(size = 18),
-          plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
-    geom_label(aes(x = -1.5, 
-                   label = Sample_Haplo),  # Usa a nova coluna Sample_Haplo para mostrar Sample e Haplo
-               size = 3.8,  # Reduz o tamanho do texto
-               fill = NA,  # Remove a cor de fundo da caixa do nome da amostra
-               show.legend = FALSE,
-               nudge_x = 1.3)  # Ajusta a posição do texto para a direita, se necessário
-
+  #---------GRAFICOS
+  if (grafico_tipo == "Only Presence") {
+    plot <- plot_data_samples %>%
+      filter(Presence == 1) %>%
+      mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
+                            "H1", "H2"),
+             Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%
+      ggplot(aes(xmin = start,
+                 xmax = end, 
+                 y = Sample, 
+                 fill = Gene)) +
+      geom_segment(aes(x = 0.9, xend = 18.5),  
+                   color = "black", size = 0.5) +
+      geom_rect(aes(xmin = start - 0.2,  
+                    xmax = end + 0.2,    
+                    ymin = as.numeric(Sample) - 0.01,  
+                    ymax = as.numeric(Sample) + 0.01),
+                color = "black", 
+                linewidth = 0.5) +
+      facet_wrap(Sample ~ Haplo, 
+                 scales = "free_y", 
+                 ncol = 1) + 
+      scale_fill_manual(values = gene_colors) +
+      theme_minimal() +
+      guides(fill = guide_legend(nrow = 2), ncol = 2) +
+      labs(x = "Genes", 
+           y = "Sample", 
+           title = "") +
+      theme(panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(),
+            axis.title = element_blank(),
+            axis.text = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "top",
+            strip.text = element_blank(),
+            legend.text = element_text(size = 18),
+            plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
+      geom_label(aes(x = -1.5, 
+                     label = Sample_Haplo),
+                 size = 3.8, 
+                 fill = NA,
+                 show.legend = FALSE,
+                 nudge_x = 1.3)
+  } else if (grafico_tipo == "With the alleles") {
+    plot <- plot_data_samples %>%
+      filter(Presence == 1) %>% 
+      mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
+                            "H1", "H2"),
+             Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%
+      ggplot(aes(xmin = start,
+                 xmax = end, 
+                 y = Sample, 
+                 fill = Gene)) +
+      geom_segment(aes(x = 0.9, xend = 18.5),  
+                   color = "black", size = 0.5) +
+      geom_rect(aes(xmin = start - 0.2,  
+                    xmax = end + 0.2,    
+                    ymin = as.numeric(Sample) - 0.01,  
+                    ymax = as.numeric(Sample) + 0.01),
+                color = "black", 
+                linewidth = 0.5) +
+      geom_text(aes(x = (start + end) / 2,  # Posiciona o texto no centro do retângulo
+                    y = as.numeric(Sample),
+                    label = Alelo),
+                size = 4,  # Ajusta o tamanho do texto
+                color = "black") +  # Define a cor do texto
+      facet_wrap(Sample ~ Haplo, 
+                 scales = "free_y", 
+                 ncol = 1) +  
+      scale_fill_manual(values = gene_colors) +
+      theme_minimal() +
+      guides(fill = guide_legend(nrow = 2), ncol = 2) +  
+      labs(x = "Genes", 
+           y = "Sample", 
+           title = "") +
+      theme(panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(),
+            axis.title = element_blank(),
+            axis.text = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "top",
+            strip.text = element_blank(),
+            legend.text = element_text(size = 18),
+            plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
+      geom_label(aes(x = -1.5, 
+                     label = Sample_Haplo),  
+                 size = 3.8,  
+                 fill = NA,  
+                 show.legend = FALSE,
+                 nudge_x = 1.3)
+  }
   
-    return(plots = list(plot_presence = plot_presence,
-                        plot_alleles = plot_alleles,
-                        list_samples = table$Sample))
+  return(plot)
+ 
 }
 
 
@@ -207,23 +208,21 @@ ui <- fluidPage(
   sidebarLayout( 
     sidebarPanel( #criar o painel do lado esquerdo
       width = 3,  # Ajusta o tamanho do painel lateral (3 é a largura em colunas do layout Bootstrap)
-      fileInput("file1", "Upload a data file", accept = c(".txt"), width = "100%"),  # Largura do painel
-      actionButton("goButton", "Generate Graph", style = "width: 100%;"),
-      tags$hr(), #add uma linha horizontal
+      fileInput("file1", "Upload a data file", accept = c(".txt", ".csv"), width = "100%"),  # Largura do painel
       
+      tags$hr(), #add uma linha horizontal
+
+      selectizeInput("amostras_input", "Select 5 Samples", choices = NULL, multiple = TRUE),
+
       radioButtons("select", "Select which information you want:",  #montar a caixinha para selecionar
                    choices = c("Only Presence", "With the alleles"),
                    selected = "Only Presence"), # "Plot Presence" é a opção selecionada por padrão
       tags$hr(), #add uma linha horizontal
       
-      selectInput("Sample",
-                 "Select a sample:",
-                  choices = NULL,
-                  multiple = TRUE),
-      
-     
+      actionButton("generate", "Generate Graph", style = "width: 100%;"),
       
       tags$hr(), #add uma linha horizontal
+
       textInput(inputId = "txt", label = "Define the title of the haplotype:", value = "KIR haplotypes (h1 and h2) for each sample"), #caixinha para o usr escrever o titulo
       
       tags$hr(),
@@ -235,34 +234,31 @@ ui <- fluidPage(
       h3(textOutput("txt", container = span)), #escreve o titulo
       plotOutput("grafico", height = "800px", width = "100%")  # Tamanho do gráfico
     
-      
+     
     )
   )
 )
 
+server <- function(input, output, session) {
 
-server <- function(input, output)
-{
-  # Armazenar a lista de gráficos reativamente
-  stored_plots <- reactiveVal(NULL)  # Para armazenar os gráficos
+  # Ao carregar o arquivo, processe os dados e atualize as amostras disponíveis para seleção
+  observeEvent(input$file1, {
+    req(input$file1)
+    data <- prepared_data(input$file1$datapath)
+    updateSelectizeInput(session, "amostras_input", choices = unique(data$Sample), server = TRUE)
+  })
   
-  samples <- reactive(NULL)
-  
-  observeEvent(input$goButton, {
+  observeEvent(input$generate, {
     
-    req(input$file1)  # Verifica se o arquivo foi carregado
+      req(input$file1)
     
-    # Iniciar a barra de progresso
-    withProgress(message = 'Checking columns...', value = 0, {
-      
-      # Atualiza o progresso para 50% (metade do processo)
-      incProgress(0.5, detail = "Processing ...")  
-      
-      # Ler o arquivo
-      file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t", check.names = TRUE)
-      
-      # Atualiza o progresso para 30% (arquivo lido)
+    # Barra de progresso
+      withProgress(message = 'Processing...', value = 0, 
+     {
       incProgress(0.2, detail = "Reading the file...")
+      
+      # Ler e processar o arquivo
+      file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t", check.names = TRUE)
       
       # Identificar as colunas que começam com "KIR" e seguem o padrão esperado
       # Ajuste da expressão regular para pegar as colunas no formato 'KIR3DL3..h1.' ou similar
@@ -293,70 +289,38 @@ server <- function(input, output)
       # Atualiza o progresso para 50% (colunas verificadas)
       incProgress(0.2, detail = "Completed checking the columns...")    
       
-      # Gerar gráficos após a verificação das colunas
-      incProgress(0.5, detail = "Creating graphics...")
-      
-      plots <- processar_gerar_grafico(input$file1$datapath)
-      
-      # Armazenar os gráficos
-      stored_plots(plots)
-
-      # Atualiza a lista suspensa (selectInput) com as amostras
-      updateSelectInput(inputId = "Sample", 
-                        choices = stored_plots()$list_samples,
-                        selected = stored_plots()$list_samples[1])
-      
-      # Finaliza a barra de progresso
-      incProgress(0.2, detail = "Complete processing")
-      
-    })  
-    
-    output$grafico <- renderPlot({
-      if (input$select == "With the alleles") {
-        return(stored_plots()$plot_alleles)  # Exibe o gráfico de alelos
-      } else {
-        return(stored_plots()$plot_presence)  # Exibe o gráfico de presença
+      # Obter as amostras selecionadas
+      selected_samples <- input$amostras_input
+      if (length(selected_samples) == 0) {
+        data <- prepared_data(input$file1$datapath)
+        selected_samples <- head(unique(data$Sample), 5) # Pega as 5 primeiras amostras, caso nenhuma seja selecionada
       }
+      
+      incProgress(0.6, detail = "Creating graphics...")
+      
+      data <- prepared_data(input$file1$datapath)
+
+      incProgress(0.2, detail = "Done!")
+      
+      # Gerar o gráfico com as amostras selecionadas
+      output$grafico <- renderPlot({
+                         gerar_grafico(data, input$select, selected_samples)})
+
     })
 
-    
-  })
-  
 
-  
-  # Botão para salvar o gráfico exibido atualmente
-  output$savePlot <- downloadHandler(
-    filename = function() {
-      if (input$select == "With the alleles") {
-        return("alleles_plot.png")
-      } else {
-        return("presence_plot.png")
-      }
-    },
-    content = function(file) {
-      plots <- stored_plots()
-      if (!is.null(plots)) {
-        if (input$select == "With the alleles") {
-          ggsave(file, plot = plots$plot_alleles, width = 11.5, height = 7, bg = "white")
-        } else {
-          ggsave(file, plot = plots$plot_presence, width = 11.5, height = 7, bg = "white")
-        }
-      }})
-
-  
-  #----------------titulo do grafico
+  # Renderizar o título do gráfico
   output$txt <- renderText({
-    req(input$txt)  # Só exibe se o campo de entrada não estiver vazio
+    req(input$txt)  # Exibe apenas se o campo de entrada não estiver vazio
     if (input$txt != "") {
-      return(input$txt)  # Exibe o título digitado
+      return(input$txt)
     } else {
-      return(NULL)  # Caso contrário, não exibe nada
-    }
-  })
+      return(NULL)}})
 
-}  
+})
+}
+
+
 
 shinyApp(ui = ui, server = server)
 
-
-# 
