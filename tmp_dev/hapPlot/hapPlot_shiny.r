@@ -202,7 +202,7 @@ ui <- fluidPage(
   tags$div(
     style = "display: flex; align-items: center; margin-bottom: 10px;",
     tags$h1("KIR Haplotypes App", style = "margin-right: 15px;"),
-    tags$img(src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSFDRAnTfp1qWUVX1BaXrlLze1pDJImh3nr7A&s", 
+    tags$img(src = "https://www.fmb.unesp.br/Home/Pesquisa/unidadedepesquisaexperimental/dedicados/lgmb-no-site-771x460.png", 
              height = "75px")
   ),
   sidebarLayout( 
@@ -241,6 +241,11 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
 
+  
+  # Armazenar os gráficos gerados
+  plots <- reactiveValues(plot_alleles = NULL, plot_presence = NULL)
+  
+  
   # Ao carregar o arquivo, processe os dados e atualize as amostras disponíveis para seleção
   observeEvent(input$file1, {
     req(input$file1)
@@ -305,9 +310,31 @@ server <- function(input, output, session) {
       # Gerar o gráfico com as amostras selecionadas
       output$grafico <- renderPlot({
                          gerar_grafico(data, input$select, selected_samples)})
+      
+      
+      # Gerar os gráficos e armazená-los
+      plots$plot_alleles <- gerar_grafico(data, "With the alleles", selected_samples)
+      plots$plot_presence <- gerar_grafico(data, "Only Presence", selected_samples)
 
     })
 
+      
+      # Botão para salvar o gráfico exibido atualmente
+      output$savePlot <- downloadHandler(
+        filename = function() {
+          if (input$select == "With the alleles") {
+            return("alleles_plot.png")
+          } else {
+            "presence_plot.png"
+          }
+        },
+        content = function(file) {
+          if (input$select == "With the alleles") {
+              ggsave(file, plot = plots$plot_alleles, width = 11.5, height = 7, bg = "white")
+            } else {
+              ggsave(file, plot = plots$plot_presence, width = 11.5, height = 7, bg = "white")
+            }})
+        
 
   # Renderizar o título do gráfico
   output$txt <- renderText({
