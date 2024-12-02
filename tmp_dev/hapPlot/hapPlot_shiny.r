@@ -247,98 +247,74 @@ server <- function(input, output, session) {
   # Armazenar os gráficos gerados
   plots <- reactiveValues(plot_alleles = NULL, plot_presence = NULL)
   
-  # Ao carregar o arquivo, processe os dados e atualize as amostras disponíveis para seleção
-  observeEvent(input$file1, {
-    req(input$file1)
-    
-    # Ler o arquivo
-    file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t", check.names = TRUE)
-    
-    # Identificar as colunas que começam com "KIR" e seguem o padrão esperado
+  # Função auxiliar para verificar colunas e exibir alertas
+  verificar_colunas <- function(file_data) {
     kir_columns <- grep("^KIR\\d+[A-Z]*\\.\\.h[12]\\.$", names(file_data), value = TRUE)
-    
-    # Definir as colunas obrigatórias
     required_columns <- c("Sample", kir_columns)
-    
-    # Checar se todas as colunas obrigatórias estão no arquivo
     missing_columns <- setdiff(required_columns, names(file_data))
     
-    # Se as colunas estiverem faltando, exibe o alerta e interrompe o processamento
     if (length(missing_columns) > 0) {
-      # Cria uma lista de colunas faltantes para exibir no warning
-      missing_columns_text <- paste(missing_columns, collapse = ", ")
-      
       shinyalert(
         title = "Error: Columns Missing",
-        text = paste("The following columns are missing from the file:", missing_columns_text),
+        text = paste("The following columns are missing from the file:", paste(missing_columns, collapse = ", ")),
         type = "warning",
         confirmButtonCol = "#DD6B55",
         confirmButtonText = "OK"
       )
-      return() # Interrompe a execução caso as colunas estejam faltando
+      return(NULL)
     }
+    return(required_columns)
+  }
+  
+  # Atualizar opções de amostras após carregar o arquivo
+  observeEvent(input$file1, {
+    req(input$file1)
+    file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t", check.names = TRUE)
     
-    # Caso contrário, processa os dados e atualiza a interface
-    data <- prepared_data(input$file1$datapath)
-    updateSelectizeInput(session, "amostras_input", choices = unique(data$Sample), server = TRUE)
+    required_columns <- verificar_colunas(file_data)
+    if (is.null(required_columns)) return() # Interrompe se faltarem colunas
+    
+    # Atualizar as opções de seleção de amostras
+    updateSelectizeInput(session, "amostras_input", choices = unique(file_data$Sample), server = TRUE)
   })
   
+  # Gerar gráficos após clicar no botão "generate"
   observeEvent(input$generate, {
     req(input$file1)
     
-    # Barra de progresso
     withProgress(message = 'Processing...', value = 0, {
       incProgress(0.2, detail = "Reading the file...")
-      
-      # Ler e processar o arquivo
       file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t", check.names = TRUE)
       
-      # Identificar as colunas que começam com "KIR" e seguem o padrão esperado
-      kir_columns <- grep("^KIR\\d+[A-Z]*\\.\\.h[12]\\.$", names(file_data), value = TRUE)
+      required_columns <- verificar_colunas(file_data)
+      if (is.null(required_columns)) return() # Interrompe se faltarem colunas
       
-      # Definir as colunas obrigatórias
-      required_columns <- c("Sample", kir_columns)
-      
-      # Checar se todas as colunas obrigatórias estão no arquivo
-      missing_columns <- setdiff(required_columns, names(file_data))
-      
-      # Se as colunas estiverem faltando, exibe o alerta
-      if (length(missing_columns) > 0) {
-        missing_columns_text <- paste(missing_columns, collapse = ", ")
-        
-        shinyalert(
-          title = "Error: Columns Missing",
-          text = paste("The following columns are missing from the file:", missing_columns_text),
-          type = "warning",
-          confirmButtonCol = "#DD6B55",
-          confirmButtonText = "OK"
-        )
-        return() # Interrompe a execução caso as colunas estejam faltando
-      }
-      
-      # Atualiza o progresso para 50% (colunas verificadas)
       incProgress(0.2, detail = "Completed checking the columns...")
       
-      # Obter as amostras selecionadas
-      selected_samples <- input$amostras_input
-      if (length(selected_samples) == 0) {
-        data <- prepared_data(input$file1$datapath)
-        selected_samples <- head(unique(data$Sample), 5) # Pega as 5 primeiras amostras, caso nenhuma seja selecionada
+      # Selecionar amostras ou pegar as 5 primeiras por padrão
+      selected_samples <- if (length(input$amostras_input) > 0) {
+        input$amostras_input
+      } else {
+        head(unique(file_data$Sample), 5)
       }
       
-      incProgress(0.6, detail = "Creating graphics...")
-      
+      incProgress(0.4, detail = "Creating graphics...")
       data <- prepared_data(input$file1$datapath)
+      
+      # Gerar gráficos
+      plots$plot_alleles <- gerar_grafico(data, "With the alleles", selected_samples)
+      plots$plot_presence <- gerar_grafico(data, "Only Presence", selected_samples)
       
       incProgress(0.2, detail = "Done!")
       
-      # Gerar o gráfico com as amostras selecionadas
+      # Renderizar gráfico selecionado
       output$grafico <- renderPlot({
-        gerar_grafico(data, input$select, selected_samples)})
-      
-      # Gerar os gráficos e armazená-los
-      plots$plot_alleles <- gerar_grafico(data, "With the alleles", selected_samples)
-      plots$plot_presence <- gerar_grafico(data, "Only Presence", selected_samples)
+        if (input$select == "With the alleles") {
+          plots$plot_alleles
+        } else {
+          plots$plot_presence
+        }
+      })
     })
   })
   
@@ -348,21 +324,22 @@ server <- function(input, output, session) {
       if (input$select == "With the alleles") {
         return("alleles_plot.png")
       } else {
-        "presence_plot.png"
+        return("presence_plot.png")
       }
     },
     content = function(file) {
-      if (input$select == "With the alleles") {
-        ggsave(file, plot = plots$plot_alleles, width = 11.5, height = 7, bg = "white")
+      selected_plot <- if (input$select == "With the alleles") {
+        plots$plot_alleles
       } else {
-        ggsave(file, plot = plots$plot_presence, width = 11.5, height = 7, bg = "white")
+        plots$plot_presence
       }
-    })
+      ggsave(file, plot = selected_plot, width = 11.5, height = 7, bg = "white")
+    }
+  )
   
   # Renderizar o título do gráfico
   output$txt <- renderText({
-    req(input$txt)  # Exibe apenas se o campo de entrada não estiver vazio
-    if (input$txt != "") {
+    if (!is.null(input$txt) && input$txt != "") {
       return(input$txt)
     } else {
       return(NULL)
