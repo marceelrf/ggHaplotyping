@@ -237,55 +237,75 @@ ui <- fluidPage(
                  plotOutput("grafico", height = "800px", width = "100%")),  # Gráfico
         tabPanel("About",  # Aba para "About"
                  h3("About This Application"),
-                 p("This tab provides information about the application."))))
-
+                 p("This tab provides information about the application.")))
 
     )
-  )
-
+  ))
 
 server <- function(input, output, session) {
-
-
+  
   # Armazenar os gráficos gerados
   plots <- reactiveValues(plot_alleles = NULL, plot_presence = NULL)
-
-
+  
   # Ao carregar o arquivo, processe os dados e atualize as amostras disponíveis para seleção
   observeEvent(input$file1, {
     req(input$file1)
+    
+    # Ler o arquivo
+    file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t", check.names = TRUE)
+    
+    # Identificar as colunas que começam com "KIR" e seguem o padrão esperado
+    kir_columns <- grep("^KIR\\d+[A-Z]*\\.\\.h[12]\\.$", names(file_data), value = TRUE)
+    
+    # Definir as colunas obrigatórias
+    required_columns <- c("Sample", kir_columns)
+    
+    # Checar se todas as colunas obrigatórias estão no arquivo
+    missing_columns <- setdiff(required_columns, names(file_data))
+    
+    # Se as colunas estiverem faltando, exibe o alerta e interrompe o processamento
+    if (length(missing_columns) > 0) {
+      # Cria uma lista de colunas faltantes para exibir no warning
+      missing_columns_text <- paste(missing_columns, collapse = ", ")
+      
+      shinyalert(
+        title = "Error: Columns Missing",
+        text = paste("The following columns are missing from the file:", missing_columns_text),
+        type = "warning",
+        confirmButtonCol = "#DD6B55",
+        confirmButtonText = "OK"
+      )
+      return() # Interrompe a execução caso as colunas estejam faltando
+    }
+    
+    # Caso contrário, processa os dados e atualiza a interface
     data <- prepared_data(input$file1$datapath)
     updateSelectizeInput(session, "amostras_input", choices = unique(data$Sample), server = TRUE)
   })
-
+  
   observeEvent(input$generate, {
-
-      req(input$file1)
-
+    req(input$file1)
+    
     # Barra de progresso
-      withProgress(message = 'Processing...', value = 0,
-     {
+    withProgress(message = 'Processing...', value = 0, {
       incProgress(0.2, detail = "Reading the file...")
-
+      
       # Ler e processar o arquivo
       file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t", check.names = TRUE)
-
+      
       # Identificar as colunas que começam com "KIR" e seguem o padrão esperado
-      # Ajuste da expressão regular para pegar as colunas no formato 'KIR3DL3..h1.' ou similar
       kir_columns <- grep("^KIR\\d+[A-Z]*\\.\\.h[12]\\.$", names(file_data), value = TRUE)
-
+      
       # Definir as colunas obrigatórias
       required_columns <- c("Sample", kir_columns)
-
+      
       # Checar se todas as colunas obrigatórias estão no arquivo
       missing_columns <- setdiff(required_columns, names(file_data))
-
+      
       # Se as colunas estiverem faltando, exibe o alerta
-      if (length(missing_columns) > 0)
-      {
-        # Cria uma lista de colunas faltantes para exibir no warning
+      if (length(missing_columns) > 0) {
         missing_columns_text <- paste(missing_columns, collapse = ", ")
-
+        
         shinyalert(
           title = "Error: Columns Missing",
           text = paste("The following columns are missing from the file:", missing_columns_text),
@@ -295,64 +315,60 @@ server <- function(input, output, session) {
         )
         return() # Interrompe a execução caso as colunas estejam faltando
       }
-
+      
       # Atualiza o progresso para 50% (colunas verificadas)
       incProgress(0.2, detail = "Completed checking the columns...")
-
+      
       # Obter as amostras selecionadas
       selected_samples <- input$amostras_input
       if (length(selected_samples) == 0) {
         data <- prepared_data(input$file1$datapath)
         selected_samples <- head(unique(data$Sample), 5) # Pega as 5 primeiras amostras, caso nenhuma seja selecionada
       }
-
+      
       incProgress(0.6, detail = "Creating graphics...")
-
+      
       data <- prepared_data(input$file1$datapath)
-
+      
       incProgress(0.2, detail = "Done!")
-
+      
       # Gerar o gráfico com as amostras selecionadas
       output$grafico <- renderPlot({
-                         gerar_grafico(data, input$select, selected_samples)})
-
-
+        gerar_grafico(data, input$select, selected_samples)})
+      
       # Gerar os gráficos e armazená-los
       plots$plot_alleles <- gerar_grafico(data, "With the alleles", selected_samples)
       plots$plot_presence <- gerar_grafico(data, "Only Presence", selected_samples)
-
     })
-
-
-      # Botão para salvar o gráfico exibido atualmente
-      output$savePlot <- downloadHandler(
-        filename = function() {
-          if (input$select == "With the alleles") {
-            return("alleles_plot.png")
-          } else {
-            "presence_plot.png"
-          }
-        },
-        content = function(file) {
-          if (input$select == "With the alleles") {
-              ggsave(file, plot = plots$plot_alleles, width = 11.5, height = 7, bg = "white")
-            } else {
-              ggsave(file, plot = plots$plot_presence, width = 11.5, height = 7, bg = "white")
-            }})
-
-
+  })
+  
+  # Botão para salvar o gráfico exibido atualmente
+  output$savePlot <- downloadHandler(
+    filename = function() {
+      if (input$select == "With the alleles") {
+        return("alleles_plot.png")
+      } else {
+        "presence_plot.png"
+      }
+    },
+    content = function(file) {
+      if (input$select == "With the alleles") {
+        ggsave(file, plot = plots$plot_alleles, width = 11.5, height = 7, bg = "white")
+      } else {
+        ggsave(file, plot = plots$plot_presence, width = 11.5, height = 7, bg = "white")
+      }
+    })
+  
   # Renderizar o título do gráfico
   output$txt <- renderText({
     req(input$txt)  # Exibe apenas se o campo de entrada não estiver vazio
     if (input$txt != "") {
       return(input$txt)
     } else {
-      return(NULL)}})
-
-})
+      return(NULL)
+    }
+  })
 }
-
-
 
 shinyApp(ui = ui, server = server)
 
