@@ -67,6 +67,7 @@ prepared_data <- function(input_file)
   combined_data <- left_join(presence_long, alleles_long, by = c("Sample", "Gene", "Haplo"))
 
   return(combined_data)
+
 }
 
 
@@ -79,21 +80,22 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
     mutate(
       xpos = case_when(
         Gene == "KIR3DL3" ~ 1,
-        Gene == "KIR2DS2" ~ 2.7,
-        Gene == "KIR2DL2" ~ 4.2,
-        Gene == "KIR2DL3" ~ 4.2,
-        Gene == "KIR2DL5AB" ~ 5.7,
-        Gene == "KIR2DS3" ~ 7.2,
-        Gene == "KIR2DS5" ~ 7.2,
-        Gene == "KIR2DP1" ~ 8.7,
-        Gene == "KIR2DL1" ~ 10.2,
-        Gene == "KIR3DP1" ~ 11.7,
-        Gene == "KIR2DL4" ~ 13.2,
-        Gene == "KIR3DL1" ~ 14.7,
-        Gene == "KIR3DS1" ~ 14.7,
-        Gene == "KIR2DS4" ~ 16.2,
-        Gene == "KIR2DS1" ~ 16.2,
-        Gene == "KIR3DL2" ~ 17.7,
+        Gene == "KIR2DS2" ~ 3.0,
+        Gene == "KIR2DL2" ~ 5.0,
+        Gene == "KIR2DL3" ~ 5.0,  # Mesmo valor que KIR2DL2
+        Gene == "KIR2DL5AB" ~ 7.0,
+        Gene == "KIR2DS3" ~ 9.0,
+        Gene == "KIR2DS5" ~ 9.0,  # Mesmo valor que KIR2DS3
+        Gene == "KIR2DP1" ~ 11.0,
+        Gene == "KIR2DL1" ~ 13.0,
+        Gene == "KIR3DP1" ~ 15.0,
+        Gene == "KIR2DL4" ~ 17.0,
+        Gene == "KIR3DL1" ~ 19.0,
+        Gene == "KIR3DS1" ~ 21.0,
+        Gene == "KIR2DL5AB" ~ 23.0,  # KIR2DL5AB repetido após KIR3DS1
+        Gene == "KIR2DS4" ~ 25.0,
+        Gene == "KIR2DS1" ~ 25.0,  # Mesmo valor que KIR2DS4
+        Gene == "KIR3DL2" ~ 27.0,
         TRUE ~ NA_real_
       ),
       start = xpos,
@@ -112,7 +114,7 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
                  xmax = end,
                  y = Sample,
                  fill = Gene)) +
-      geom_segment(aes(x = 0.9, xend = 18.5),
+      geom_segment(aes(x = 0.9, xend = 27.5), #linha para conectar as caixinhas
                    color = "black", size = 0.5) +
       geom_rect(aes(xmin = start - 0.2,
                     xmax = end + 0.2,
@@ -125,7 +127,7 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
                  ncol = 1) +
       scale_fill_manual(values = gene_colors) +
       theme_minimal() +
-      guides(fill = guide_legend(nrow = 2), ncol = 2) +
+      guides(fill = guide_legend(nrow = 2), ncol = 3) +   #ajustar a legenda e controla a ordem da legenda - fill = guide_legend(nrow = 1), ncol = 0 ncol é a quantidade de colunas dividindo os itens da legenda, nrow são as linhas
       labs(x = "Genes",
            y = "Sample",
            title = "") +
@@ -134,8 +136,8 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
             axis.title = element_blank(),
             axis.text = element_blank(),
             legend.title = element_blank(),
-            legend.position = "top",
-            strip.text = element_blank(),
+            legend.position = "top", #legenda acima do grafico
+            strip.text = element_blank(),   #não aparece o nome das facetas
             legend.text = element_text(size = 18),
             plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
       geom_label(aes(x = -1.5,
@@ -154,7 +156,7 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
                  xmax = end,
                  y = Sample,
                  fill = Gene)) +
-      geom_segment(aes(x = 0.9, xend = 18.5),
+      geom_segment(aes(x = 0.9, xend = 27.5), #linha para conectar as caixinhas
                    color = "black", size = 0.5) +
       geom_rect(aes(xmin = start - 0.2,
                     xmax = end + 0.2,
@@ -197,7 +199,184 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
 
 }
 
+#-----------------Telomeric e Centromeric
+type_hap <- function(combined_data, haplotipo_tipo, selected_samples)
+{
+  plot_data_samples <- combined_data %>%
+    filter(Sample %in% selected_samples) %>%
+    mutate(Gene_Haplo = paste(Gene, Haplo, sep = "_")) %>%
+    mutate(
+      xpos = case_when(
+        Gene == "KIR3DL3" ~ 1,
+        Gene == "KIR2DS2" ~ 3.0,
+        Gene == "KIR2DL2" ~ 5.0,
+        Gene == "KIR2DL3" ~ 5.0,  # Mesmo valor que KIR2DL2
+        Gene == "KIR2DL5AB" ~ 7.0,
+        Gene == "KIR2DS3" ~ 9.0,
+        Gene == "KIR2DS5" ~ 9.0,  # Mesmo valor que KIR2DS3
+        Gene == "KIR2DP1" ~ 11.0,
+        Gene == "KIR2DL1" ~ 13.0,
+        Gene == "KIR3DP1" ~ 15.0,
+        Gene == "KIR2DL4" ~ 17.0,
+        Gene == "KIR3DL1" ~ 19.0,
+        Gene == "KIR3DS1" ~ 21.0,
+        Gene == "KIR2DL5AB" ~ 23.0,  # KIR2DL5AB repetido após KIR3DS1
+        Gene == "KIR2DS4" ~ 25.0,
+        Gene == "KIR2DS1" ~ 25.0,  # Mesmo valor que KIR2DS4
+        Gene == "KIR3DL2" ~ 27.0,
+        TRUE ~ NA_real_
+      ),
+      start = xpos,
+      end = xpos + 1
+    ) %>%
+    mutate(Gene = factor(Gene, levels = unique(Gene)))
 
+  #GRAFICO
+  if (haplotipo_tipo == "All the Genes") {
+    hap_plot <- plot_data_samples %>%
+      filter(Presence == 1) %>%
+      mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
+                            "H1", "H2"),
+             Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%
+      ggplot(aes(xmin = start,
+                 xmax = end,
+                 y = Sample,
+                 fill = Gene)) +
+      geom_segment(aes(x = 0.9, xend = 27.5), #linha para conectar as caixinhas
+                   color = "black", size = 0.5) +
+      geom_rect(aes(xmin = start - 0.2,
+                    xmax = end + 0.2,
+                    ymin = as.numeric(Sample) - 0.01,
+                    ymax = as.numeric(Sample) + 0.01),
+                color = "black",
+                linewidth = 0.5) +
+      facet_wrap(Sample ~ Haplo,
+                 scales = "free_y",
+                 ncol = 1) +
+      scale_fill_manual(values = gene_colors) +
+      theme_minimal() +
+      guides(fill = guide_legend(nrow = 2), ncol = 3) +   #ajustar a legenda e controla a ordem da legenda - fill = guide_legend(nrow = 1), ncol = 0 ncol é a quantidade de colunas dividindo os itens da legenda, nrow são as linhas
+      labs(x = "Genes",
+           y = "Sample",
+           title = "") +
+      theme(panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            axis.title = element_blank(),
+            axis.text = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "top", #legenda acima do grafico
+            strip.text = element_blank(),   #não aparece o nome das facetas
+            legend.text = element_text(size = 18),
+            plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
+      geom_label(aes(x = -1.5,
+                     label = Sample_Haplo),
+                 size = 3.8,
+                 fill = NA,
+                 show.legend = FALSE,
+                 nudge_x = 1.3)
+  } else if (haplotipo_tipo == "Only Centromeric KIR Genes") {
+    hap_plot <- plot_data_samples %>%
+      filter(Presence == 1,
+             Gene %in% c("KIR3DL3", "KIR2DS2", "KIR2DL2", "KIR2DL3", "KIR2DL5AB",
+                         "KIR2DS3", "KIR2DS5", "KIR2DP1", "KIR2DL1", "KIR3DP1")) %>% #filtra só os genes centromericos
+      mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
+                            "H1", "H2"),
+             Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%
+      ggplot(aes(xmin = start,
+                 xmax = end,
+                 y = Sample,
+                 fill = Gene)) +
+      geom_segment(aes(x = 0.9, xend = 27.5), #linha para conectar as caixinhas
+                   color = "black", size = 0.5) +
+      geom_rect(aes(xmin = start - 0.2,
+                    xmax = end + 0.2,
+                    ymin = as.numeric(Sample) - 0.01,
+                    ymax = as.numeric(Sample) + 0.01),
+                color = "black",
+                linewidth = 0.5) +
+      geom_text(aes(x = (start + end) / 2,  # Posiciona o texto no centro do retângulo
+                    y = as.numeric(Sample),
+                    label = Alelo),
+                size = 4,  # Ajusta o tamanho do texto
+                color = "black") +  # Define a cor do texto
+      facet_wrap(Sample ~ Haplo,
+                 scales = "free_y",
+                 ncol = 1) +
+      scale_fill_manual(values = gene_colors) +
+      theme_minimal() +
+      guides(fill = guide_legend(nrow = 2), ncol = 2) +
+      labs(x = "Genes",
+           y = "Sample",
+           title = "") +
+      theme(panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            axis.title = element_blank(),
+            axis.text = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "top",
+            strip.text = element_blank(),
+            legend.text = element_text(size = 18),
+            plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
+      geom_label(aes(x = -1.5,
+                     label = Sample_Haplo),
+                 size = 3.8,
+                 fill = NA,
+                 show.legend = FALSE,
+                 nudge_x = 1.3)
+  } else if (haplotipo_tipo == "Only Telomeric KIR Genes") {
+    hap_plot <- plot_data_samples %>%
+      filter(Presence == 1,
+             Gene %in% c("KIR2DL4", "KIR3DL1", "KIR3DS1", "KIR2DL5AB", "KIR2DS4",
+                         "KIR2DS1", "KIR3DL2")) %>%  #filtra só os genes centromericos
+      mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
+                            "H1", "H2"),
+             Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%
+      ggplot(aes(xmin = start,
+                 xmax = end,
+                 y = Sample,
+                 fill = Gene)) +
+      geom_segment(aes(x = 0.9, xend = 27.5), #linha para conectar as caixinhas
+                   color = "black", size = 0.5) +
+      geom_rect(aes(xmin = start - 0.2,
+                    xmax = end + 0.2,
+                    ymin = as.numeric(Sample) - 0.01,
+                    ymax = as.numeric(Sample) + 0.01),
+                color = "black",
+                linewidth = 0.5) +
+      geom_text(aes(x = (start + end) / 2,  # Posiciona o texto no centro do retângulo
+                    y = as.numeric(Sample),
+                    label = Alelo),
+                size = 4,  # Ajusta o tamanho do texto
+                color = "black") +  # Define a cor do texto
+      facet_wrap(Sample ~ Haplo,
+                 scales = "free_y",
+                 ncol = 1) +
+      scale_fill_manual(values = gene_colors) +
+      theme_minimal() +
+      guides(fill = guide_legend(nrow = 2), ncol = 2) +
+      labs(x = "Genes",
+           y = "Sample",
+           title = "") +
+      theme(panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            axis.title = element_blank(),
+            axis.text = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "top",
+            strip.text = element_blank(),
+            legend.text = element_text(size = 18),
+            plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
+      geom_label(aes(x = -1.5,
+                     label = Sample_Haplo),
+                 size = 3.8,
+                 fill = NA,
+                 show.legend = FALSE,
+                 nudge_x = 1.3)
+  }
+  return(hap_plot)
+}
+
+#-----------------------------app
 ui <- fluidPage(
   tags$div(
     style = "display: flex; align-items: center; margin-bottom: 10px;",
@@ -215,8 +394,14 @@ ui <- fluidPage(
       selectizeInput("amostras_input", "Select the Samples", choices = NULL, multiple = TRUE, options = list(placeholder = "The first 5 Samples of the input")),
 
       radioButtons("select", "Select which information you want:",  #montar a caixinha para selecionar
-                   choices = c("Only Presence", "With the alleles"),
+                   choices = c("Only Presence", "With the Alleles"),
                    selected = "Only Presence"), # "Plot Presence" é a opção selecionada por padrão
+      tags$hr(), #add uma linha horizontal
+
+      radioButtons("type", "Type of Haplotype",  #montar a caixinha para selecionar
+                   choices = c("All the Genes", "Only Centromeric KIR Genes", "Only Telomeric KIR Genes"),
+                   selected = "All the Genes"), # "Plot Presence" é a opção selecionada por padrão
+
       tags$hr(), #add uma linha horizontal
 
       actionButton("generate", "Generate Graph", style = "width: 100%;"),
@@ -243,16 +428,17 @@ ui <- fluidPage(
   ))
 
 server <- function(input, output, session) {
-  
+
   # Armazenar os gráficos gerados
   plots <- reactiveValues(plot_alleles = NULL, plot_presence = NULL)
-  
+  hap_plot <- reactiveValues(plot_all = NULL, plot_cen = NULL, plot_tel = NULL)
+
   # Função auxiliar para verificar colunas e exibir alertas
   verificar_colunas <- function(file_data) {
     kir_columns <- grep("^KIR\\d+[A-Z]*\\.\\.h[12]\\.$", names(file_data), value = TRUE)
     required_columns <- c("Sample", kir_columns)
     missing_columns <- setdiff(required_columns, names(file_data))
-    
+
     if (length(missing_columns) > 0) {
       shinyalert(
         title = "Error: Columns Missing",
@@ -265,48 +451,52 @@ server <- function(input, output, session) {
     }
     return(required_columns)
   }
-  
+
   # Atualizar opções de amostras após carregar o arquivo
   observeEvent(input$file1, {
     req(input$file1)
     file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t", check.names = TRUE)
-    
+
     required_columns <- verificar_colunas(file_data)
     if (is.null(required_columns)) return() # Interrompe se faltarem colunas
-    
+
     # Atualizar as opções de seleção de amostras
     updateSelectizeInput(session, "amostras_input", choices = unique(file_data$Sample), server = TRUE)
   })
-  
+
   # Gerar gráficos após clicar no botão "generate"
   observeEvent(input$generate, {
     req(input$file1)
-    
+
     withProgress(message = 'Processing...', value = 0, {
       incProgress(0.2, detail = "Reading the file...")
       file_data <- read.table(input$file1$datapath, header = TRUE, sep = "\t", check.names = TRUE)
-      
+
       required_columns <- verificar_colunas(file_data)
       if (is.null(required_columns)) return() # Interrompe se faltarem colunas
-      
+
       incProgress(0.2, detail = "Completed checking the columns...")
-      
+
       # Selecionar amostras ou pegar as 5 primeiras por padrão
       selected_samples <- if (length(input$amostras_input) > 0) {
         input$amostras_input
       } else {
         head(unique(file_data$Sample), 5)
       }
-      
+
       incProgress(0.4, detail = "Creating graphics...")
       data <- prepared_data(input$file1$datapath)
-      
+
       # Gerar gráficos
       plots$plot_alleles <- gerar_grafico(data, "With the alleles", selected_samples)
       plots$plot_presence <- gerar_grafico(data, "Only Presence", selected_samples)
-      
+
+      hap_plot$plot_all <- type_hap(data, "All the Genes", selected_samples)
+      hap_plot$plot_cen <- type_hap(data, "Only Centromeric KIR Genes", selected_samples)
+      hap_plot$plot_tel <- type_hap(data, "Only Telomeric KIR Genes", selected_samples)
+
       incProgress(0.2, detail = "Done!")
-      
+
       # Renderizar gráfico selecionado
       output$grafico <- renderPlot({
         if (input$select == "With the alleles") {
@@ -315,9 +505,26 @@ server <- function(input, output, session) {
           plots$plot_presence
         }
       })
-    })
+
+
+      #tipo de haplotipo - grafico
+      output$grafico <- renderPlot({
+        if (input$type == "Only Centromeric KIR Genes")
+        {
+          hap_plot$plot_cen
+        } else if (input$type == "Only Telomeric KIR Genes")
+        {
+          hap_plot$plot_tel
+        } else {
+          hap_plot$plot_all
+        }
+
+
+      })
+
+      })
   })
-  
+
   # Botão para salvar o gráfico exibido atualmente
   output$savePlot <- downloadHandler(
     filename = function() {
@@ -336,7 +543,7 @@ server <- function(input, output, session) {
       ggsave(file, plot = selected_plot, width = 11.5, height = 7, bg = "white")
     }
   )
-  
+
   # Renderizar o título do gráfico
   output$txt <- renderText({
     if (!is.null(input$txt) && input$txt != "") {
