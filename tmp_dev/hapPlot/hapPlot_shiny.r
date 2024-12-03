@@ -8,7 +8,6 @@ library(pacman)
 packages <- c("shiny",
               "tidyverse",
               "ggplot2",
-              "plotly",
               "gggenes",
               "viridis",
               "reshape2",
@@ -20,12 +19,13 @@ p_load(packages, character.only = TRUE)
 # Criar um vetor de cores para cada gene
 gene_colors <- c("KIR2DL1" = "#CDB5CD", "KIR2DL2" = "#ADFF2F",
                  "KIR2DL3" = "#436EEE", "KIR2DL4" = "#8B8B7A",
-                 "KIR2DL5AB" = "#A52A2A", "KIR2DP1" = "#C1FFC1",
+                 "KIR2DL5A" = "#A52A2A", "KIR2DP1" = "#C1FFC1",
                  "KIR2DS1" = "#00F5FF", "KIR2DS2" = "#EE6A50",
                  "KIR2DS3" = "#CDC673", "KIR2DS4" = "orange",
                  "KIR2DS5" = "#EEA2AD", "KIR3DL1" = "#FF83FA",
                  "KIR3DL2" = "#AB82FF", "KIR3DL3" = "#B0C4DE",
-                 "KIR3DP1" = "#FFFF00", "KIR3DS1" = "#008B00")
+                 "KIR3DP1" = "#FFFF00", "KIR3DS1" = "#008B00",
+                 "KIR2DL5B" = "#CD8C95")
 
 color_mapping <- unlist(sapply(names(gene_colors), function(gene) {
   c(`1` = gene_colors[[gene]], `0` = "white")
@@ -34,10 +34,28 @@ color_mapping <- unlist(sapply(names(gene_colors), function(gene) {
 prepared_data <- function(input_file)
 {
   table <- read.table(input_file, h = T, sep = "\t")
+
   # Filtrando as colunas necessárias para o app -H1 e -H2 de cada amostra
+
   table_filtered <- table %>%
     select(Sample, matches("^KIR.*h[12]")) %>%  # Seleciona "Sample" e colunas que começam com "KIR" e contêm "h1" e "h2"
     rename_with(~ str_replace_all(., "\\.+", "_") %>% str_replace("_$", ""), matches("^KIR.*h[12]")) %>%  # Substitui "." por "_"
+    mutate(
+      KIR2DL5A_h1 = ifelse(grepl("KIR2DL5A", KIR2DL5AB_h1),
+                           sub(".*(KIR2DL5A\\*\\w+).*", "\\1", KIR2DL5AB_h1), #Verifica se o Allele KIR2DL5A está presente na coluna KIR2DL5AB_h1.
+                           "KIR2DL5AB*null"),                                 #Extrai apenas o Allele KIR2DL5A (e.g., KIR2DL5A*001), caso contrário, KIR2DL5AB*null
+      KIR2DL5B_h1 = ifelse(grepl("KIR2DL5B", KIR2DL5AB_h1),
+                           sub(".*(KIR2DL5B\\*\\w+).*", "\\1", KIR2DL5AB_h1),
+                           "KIR2DL5AB*null"),
+      KIR2DL5A_h2 = ifelse(grepl("KIR2DL5A", KIR2DL5AB_h2),
+                           sub(".*(KIR2DL5A\\*\\w+).*", "\\1", KIR2DL5AB_h2),
+                           "KIR2DL5AB*null"),
+      KIR2DL5B_h2 = ifelse(grepl("KIR2DL5B", KIR2DL5AB_h2),
+                           sub(".*(KIR2DL5B\\*\\w+).*", "\\1", KIR2DL5AB_h2),
+                           "KIR2DL5AB*null")
+    ) %>%
+    select(-KIR2DL5AB_h1) %>% # Remove a coluna original, opcional -eu retirei pq agr são coisas distintas
+    select(-KIR2DL5AB_h2) %>%  # Remove a coluna original, opcional
     mutate(across(starts_with("KIR"),
                   ~ ifelse(str_detect(., "\\*null$"), 0, 1),   # Verifica se o valor contém "*null" e substitui por 0
                   .names = "presence_{.col}"))  # Cria as colunas de presença
@@ -52,19 +70,20 @@ prepared_data <- function(input_file)
     separate(Name, into = c("Gene", "Haplo"), sep = "_", extra = "merge", fill = "right") %>%  # Divide o nome em Gene e Haplo
     select(Sample, Gene, Haplo, Presence)  # Seleciona apenas as colunas desejadas
 
-  alleles_long <- table_filtered %>%
-    select(Sample, matches("^KIR.*_h[12]$")) %>%  # Seleciona as colunas de alelos (h1 e h2)
-    pivot_longer(cols = matches("^KIR.*_h[12]$"),  # Transforma as colunas de alelos
-                 names_to = "Name",  # Coloca o nome completo na coluna 'Name'
-                 values_to = "Alelo") %>%  # Coloca os valores dos alelos na coluna 'Alelo'
-    separate(Name, into = c("Gene", "Haplo"), sep = "_", extra = "merge", fill = "right") %>%  # Divide o nome em Gene e Haplo
-    select(Sample, Gene, Haplo, Alelo) %>%  # Seleciona apenas as colunas desejadas
-    mutate(Alelo = str_remove(Alelo, "\\(version \\d+\\)")) %>%  # Remove a versão dos alelos
-    mutate(Alelo = str_remove(Alelo, ".*(?=\\*)")) %>%
-    mutate(Alelo = str_replace(Alelo, "(\\w+)\\.(\\w+)\\.(.+)", "\\1*\\2\\3")) %>% # Ajusta formato dos alelos
-    mutate(Alelo = str_remove(Alelo, "^\\w+")) # Remove o nome do gene no início
 
-  combined_data <- left_join(presence_long, alleles_long, by = c("Sample", "Gene", "Haplo"))
+  Alleles_long <- table_filtered %>%
+    select(Sample, matches("^KIR.*_h[12]$")) %>%  # Seleciona as colunas de Alleles (h1 e h2)
+    pivot_longer(cols = matches("^KIR.*_h[12]$"),  # Transforma as colunas de Alleles
+                 names_to = "Name",  # Coloca o nome completo na coluna 'Name'
+                 values_to = "Allele") %>%  # Coloca os valores dos Alleles na coluna 'Allele'
+    separate(Name, into = c("Gene", "Haplo"), sep = "_", extra = "merge", fill = "right") %>%  # Divide o nome em Gene e Haplo
+    select(Sample, Gene, Haplo, Allele) %>%  # Seleciona apenas as colunas desejadas
+    mutate(Allele = str_remove(Allele, "\\(version \\d+\\)")) %>%  # Remove a versão dos Alleles
+    mutate(Allele = str_remove(Allele, ".*(?=\\*)")) %>%
+    mutate(Allele = str_replace(Allele, "(\\w+)\\.(\\w+)\\.(.+)", "\\1*\\2\\3")) %>% # Ajusta formato dos Alleles
+    mutate(Allele = str_remove(Allele, "^\\w+")) # Remove o nome do gene no início
+
+  combined_data <- left_join(presence_long, Alleles_long, by = c("Sample", "Gene", "Haplo"))
 
   return(combined_data)
 
@@ -83,7 +102,7 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
         Gene == "KIR2DS2" ~ 3.0,
         Gene == "KIR2DL2" ~ 5.0,
         Gene == "KIR2DL3" ~ 5.0,  # Mesmo valor que KIR2DL2
-        Gene == "KIR2DL5AB" ~ 7.0,
+        Gene == "KIR2DL5B" ~ 7.0,
         Gene == "KIR2DS3" ~ 9.0,
         Gene == "KIR2DS5" ~ 9.0,  # Mesmo valor que KIR2DS3
         Gene == "KIR2DP1" ~ 11.0,
@@ -92,7 +111,7 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
         Gene == "KIR2DL4" ~ 17.0,
         Gene == "KIR3DL1" ~ 19.0,
         Gene == "KIR3DS1" ~ 21.0,
-        Gene == "KIR2DL5AB" ~ 23.0,  # KIR2DL5AB repetido após KIR3DS1
+        Gene == "KIR2DL5A" ~ 23.0,
         Gene == "KIR2DS4" ~ 25.0,
         Gene == "KIR2DS1" ~ 25.0,  # Mesmo valor que KIR2DS4
         Gene == "KIR3DL2" ~ 27.0,
@@ -146,8 +165,7 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
                  fill = NA,
                  show.legend = FALSE,
                  nudge_x = 1.3)
-  }
-  if (grafico_tipo == "With the alleles") {
+  } else if (grafico_tipo == "With the Alleles") {
     plot <- plot_data_samples %>%
       filter(Presence == 1) %>%
       mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
@@ -157,7 +175,7 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
                  xmax = end,
                  y = Sample,
                  fill = Gene)) +
-      geom_segment(aes(x = 0.9, xend = 27.5), #linha para conectar as caixinhas
+      geom_segment(aes(x = 0.9, xend = 27.5),
                    color = "black", size = 0.5) +
       geom_rect(aes(xmin = start - 0.2,
                     xmax = end + 0.2,
@@ -167,7 +185,7 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
                 linewidth = 0.5) +
       geom_text(aes(x = (start + end) / 2,  # Posiciona o texto no centro do retângulo
                     y = as.numeric(Sample),
-                    label = Alelo),
+                    label = Allele),
                 size = 4,  # Ajusta o tamanho do texto
                 color = "black") +  # Define a cor do texto
       facet_wrap(Sample ~ Haplo,
@@ -275,8 +293,7 @@ type_hap <- function(combined_data, haplotipo_tipo, selected_samples)
                  fill = NA,
                  show.legend = FALSE,
                  nudge_x = 1.3)
-  }
-  if (haplotipo_tipo == "Only Centromeric KIR Genes") {
+  } else if (haplotipo_tipo == "Only Centromeric KIR Genes") {
     hap_plot <- plot_data_samples %>%
       filter(Presence == 1,
              Gene %in% c("KIR3DL3", "KIR2DS2", "KIR2DL2", "KIR2DL3", "KIR2DL5AB",
@@ -296,12 +313,17 @@ type_hap <- function(combined_data, haplotipo_tipo, selected_samples)
                     ymax = as.numeric(Sample) + 0.01),
                 color = "black",
                 linewidth = 0.5) +
-     facet_wrap(Sample ~ Haplo,
+      geom_text(aes(x = (start + end) / 2,  # Posiciona o texto no centro do retângulo
+                    y = as.numeric(Sample),
+                    label = Allele),
+                size = 4,  # Ajusta o tamanho do texto
+                color = "black") +  # Define a cor do texto
+      facet_wrap(Sample ~ Haplo,
                  scales = "free_y",
                  ncol = 1) +
       scale_fill_manual(values = gene_colors) +
       theme_minimal() +
-      guides(fill = guide_legend(nrow = 1), ncol = 1) +
+      guides(fill = guide_legend(nrow = 2), ncol = 2) +
       labs(x = "Genes",
            y = "Sample",
            title = "") +
@@ -320,8 +342,7 @@ type_hap <- function(combined_data, haplotipo_tipo, selected_samples)
                  fill = NA,
                  show.legend = FALSE,
                  nudge_x = 1.3)
-  }
-    if (haplotipo_tipo == "Only Telomeric KIR Genes") {
+  } else if (haplotipo_tipo == "Only Telomeric KIR Genes") {
     hap_plot <- plot_data_samples %>%
       filter(Presence == 1,
              Gene %in% c("KIR2DL4", "KIR3DL1", "KIR3DS1", "KIR2DL5AB", "KIR2DS4",
@@ -341,12 +362,17 @@ type_hap <- function(combined_data, haplotipo_tipo, selected_samples)
                     ymax = as.numeric(Sample) + 0.01),
                 color = "black",
                 linewidth = 0.5) +
+      geom_text(aes(x = (start + end) / 2,  # Posiciona o texto no centro do retângulo
+                    y = as.numeric(Sample),
+                    label = Allele),
+                size = 4,  # Ajusta o tamanho do texto
+                color = "black") +  # Define a cor do texto
       facet_wrap(Sample ~ Haplo,
                  scales = "free_y",
                  ncol = 1) +
       scale_fill_manual(values = gene_colors) +
       theme_minimal() +
-      guides(fill = guide_legend(nrow = 2), ncol = 1) +
+      guides(fill = guide_legend(nrow = 2), ncol = 2) +
       labs(x = "Genes",
            y = "Sample",
            title = "") +
@@ -391,9 +417,9 @@ ui <- fluidPage(
                    selected = "Only Presence"), # "Plot Presence" é a opção selecionada por padrão
       tags$hr(), #add uma linha horizontal
 
-      radioButtons("type", "Type of Haplotype",  #montar a caixinha para selecionar
-                   choices = c("All the Genes", "Only Centromeric KIR Genes", "Only Telomeric KIR Genes"),
-                   selected = "All the Genes"), # "Plot Presence" é a opção selecionada por padrão
+      # radioButtons("type", "Type of Haplotype",  #montar a caixinha para selecionar
+      #              choices = c("All the Genes", "Only Centromeric KIR Genes", "Only Telomeric KIR Genes"),
+      #              selected = "All the Genes"), # "Plot Presence" é a opção selecionada por padrão
 
       tags$hr(), #add uma linha horizontal
 
@@ -406,10 +432,10 @@ ui <- fluidPage(
       tags$hr(),
 
       downloadButton("savePlot", "Save Current Plot", style = "width: 100%;")
-      ),
+    ),
 
     mainPanel( #painel principal
-        tabsetPanel(
+      tabsetPanel(
         tabPanel("Graph", # Aba do gráfico
                  h3(textOutput("txt", container = span)),  # Título dinâmico)
                  plotOutput("grafico", height = "800px", width = "100%")),  # Gráfico
@@ -423,8 +449,8 @@ ui <- fluidPage(
 server <- function(input, output, session) {
 
   # Armazenar os gráficos gerados
-  plots <- reactiveValues(plot_alleles = NULL, plot_presence = NULL)
-  hap_plot <- reactiveValues(plot_all = NULL, plot_cen = NULL, plot_tel = NULL)
+  plots <- reactiveValues(plot_Alleles = NULL, plot_presence = NULL)
+  # hap_plot <- reactiveValues(plot_all = NULL, plot_cen = NULL, plot_tel = NULL)
 
   # Função auxiliar para verificar colunas e exibir alertas
   verificar_colunas <- function(file_data) {
@@ -481,69 +507,39 @@ server <- function(input, output, session) {
       data <- prepared_data(input$file1$datapath)
 
       # Gerar gráficos
-      plots$plot_alleles <- gerar_grafico(data, "With the alleles", selected_samples)
+      plots$plot_Alleles <- gerar_grafico(data, "With the Alleles", selected_samples)
       plots$plot_presence <- gerar_grafico(data, "Only Presence", selected_samples)
-
-      hap_plot$plot_all <- type_hap(data, "All the Genes", selected_samples)
-      hap_plot$plot_cen <- type_hap(data, "Only Centromeric KIR Genes", selected_samples)
-      hap_plot$plot_tel <- type_hap(data, "Only Telomeric KIR Genes", selected_samples)
+#
+#       hap_plot$plot_all <- type_hap(data, "All the Genes", selected_samples)
+#       hap_plot$plot_cen <- type_hap(data, "Only Centromeric KIR Genes", selected_samples)
+#       hap_plot$plot_tel <- type_hap(data, "Only Telomeric KIR Genes", selected_samples)
 
       incProgress(0.2, detail = "Done!")
 
       # Renderizar gráfico selecionado
       output$grafico <- renderPlot({
-        if (input$select == "With the alleles" && input$type == "All the Genes") {
-          plots$plot_alleles + hap_plot$plot_all}
-
-        if (input$select == "With the alleles" && input$type == "Only Centromeric KIR Genes") {
-          plots$plot_alleles + hap_plot$plot_cen}
-
-        if (input$select == "With the alleles" && input$type == "Only Telomeric KIR Genes") {
-          plots$plot_alleles + hap_plot$plot_tel}
-
-        if (input$select == "Only Presence" && input$type == "All the Genes") {
-          plots$plot_alleles + hap_plot$plot_all}
-
-        if (input$select == "Only Presence" && input$type == "Only Centromeric KIR Genes") {
-          plots$plot_alleles + hap_plot$plot_cen}
-
-        if (input$select == "Only Presence" && input$type == "Only Telomeric KIR Genes") {
-          plots$plot_alleles +hap_plot$plot_tel}
-
-
-      })
-
-
-      #tipo de haplotipo - grafico
-      output$grafico <- renderPlot({
-        if (input$type == "Only Centromeric KIR Genes")
-        {
-          hap_plot$plot_cen
-        } else if (input$type == "Only Telomeric KIR Genes")
-        {
-          hap_plot$plot_tel
+        if (input$select == "With the Alleles") {
+          plots$plot_Alleles
         } else {
-          hap_plot$plot_all
+          plots$plot_presence
         }
-
-
       })
 
-      })
+})
   })
 
   # Botão para salvar o gráfico exibido atualmente
   output$savePlot <- downloadHandler(
     filename = function() {
-      if (input$select == "With the alleles") {
-        return("alleles_plot.png")
+      if (input$select == "With the Alleles") {
+        return("Alleles_plot.png")
       } else {
         return("presence_plot.png")
       }
     },
     content = function(file) {
-      selected_plot <- if (input$select == "With the alleles") {
-        plots$plot_alleles
+      selected_plot <- if (input$select == "With the Alleles") {
+        plots$plot_Alleles
       } else {
         plots$plot_presence
       }
