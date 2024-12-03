@@ -146,7 +146,8 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
                  fill = NA,
                  show.legend = FALSE,
                  nudge_x = 1.3)
-  } else if (grafico_tipo == "With the alleles") {
+  }
+  if (grafico_tipo == "With the alleles") {
     plot <- plot_data_samples %>%
       filter(Presence == 1) %>%
       mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
@@ -274,7 +275,8 @@ type_hap <- function(combined_data, haplotipo_tipo, selected_samples)
                  fill = NA,
                  show.legend = FALSE,
                  nudge_x = 1.3)
-  } else if (haplotipo_tipo == "Only Centromeric KIR Genes") {
+  }
+  if (haplotipo_tipo == "Only Centromeric KIR Genes") {
     hap_plot <- plot_data_samples %>%
       filter(Presence == 1,
              Gene %in% c("KIR3DL3", "KIR2DS2", "KIR2DL2", "KIR2DL3", "KIR2DL5AB",
@@ -294,17 +296,12 @@ type_hap <- function(combined_data, haplotipo_tipo, selected_samples)
                     ymax = as.numeric(Sample) + 0.01),
                 color = "black",
                 linewidth = 0.5) +
-      geom_text(aes(x = (start + end) / 2,  # Posiciona o texto no centro do retângulo
-                    y = as.numeric(Sample),
-                    label = Alelo),
-                size = 4,  # Ajusta o tamanho do texto
-                color = "black") +  # Define a cor do texto
-      facet_wrap(Sample ~ Haplo,
+     facet_wrap(Sample ~ Haplo,
                  scales = "free_y",
                  ncol = 1) +
       scale_fill_manual(values = gene_colors) +
       theme_minimal() +
-      guides(fill = guide_legend(nrow = 2), ncol = 2) +
+      guides(fill = guide_legend(nrow = 1), ncol = 1) +
       labs(x = "Genes",
            y = "Sample",
            title = "") +
@@ -323,7 +320,8 @@ type_hap <- function(combined_data, haplotipo_tipo, selected_samples)
                  fill = NA,
                  show.legend = FALSE,
                  nudge_x = 1.3)
-  } else if (haplotipo_tipo == "Only Telomeric KIR Genes") {
+  }
+    if (haplotipo_tipo == "Only Telomeric KIR Genes") {
     hap_plot <- plot_data_samples %>%
       filter(Presence == 1,
              Gene %in% c("KIR2DL4", "KIR3DL1", "KIR3DS1", "KIR2DL5AB", "KIR2DS4",
@@ -343,17 +341,12 @@ type_hap <- function(combined_data, haplotipo_tipo, selected_samples)
                     ymax = as.numeric(Sample) + 0.01),
                 color = "black",
                 linewidth = 0.5) +
-      geom_text(aes(x = (start + end) / 2,  # Posiciona o texto no centro do retângulo
-                    y = as.numeric(Sample),
-                    label = Alelo),
-                size = 4,  # Ajusta o tamanho do texto
-                color = "black") +  # Define a cor do texto
       facet_wrap(Sample ~ Haplo,
                  scales = "free_y",
                  ncol = 1) +
       scale_fill_manual(values = gene_colors) +
       theme_minimal() +
-      guides(fill = guide_legend(nrow = 2), ncol = 2) +
+      guides(fill = guide_legend(nrow = 2), ncol = 1) +
       labs(x = "Genes",
            y = "Sample",
            title = "") +
@@ -499,11 +492,25 @@ server <- function(input, output, session) {
 
       # Renderizar gráfico selecionado
       output$grafico <- renderPlot({
-        if (input$select == "With the alleles") {
-          plots$plot_alleles
-        } else {
-          plots$plot_presence
-        }
+        if (input$select == "With the alleles" && input$type == "All the Genes") {
+          plots$plot_alleles + hap_plot$plot_all}
+
+        if (input$select == "With the alleles" && input$type == "Only Centromeric KIR Genes") {
+          plots$plot_alleles + hap_plot$plot_cen}
+
+        if (input$select == "With the alleles" && input$type == "Only Telomeric KIR Genes") {
+          plots$plot_alleles + hap_plot$plot_tel}
+
+        if (input$select == "Only Presence" && input$type == "All the Genes") {
+          plots$plot_alleles + hap_plot$plot_all}
+
+        if (input$select == "Only Presence" && input$type == "Only Centromeric KIR Genes") {
+          plots$plot_alleles + hap_plot$plot_cen}
+
+        if (input$select == "Only Presence" && input$type == "Only Telomeric KIR Genes") {
+          plots$plot_alleles +hap_plot$plot_tel}
+
+
       })
 
 
