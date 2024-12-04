@@ -58,8 +58,47 @@ prepared_data <- function(input_file)
     select(-KIR2DL5AB_h2) %>%  # Remove a coluna original, opcional
     mutate(across(starts_with("KIR"),
                   ~ ifelse(str_detect(., "\\*null$"), 0, 1),   # Verifica se o valor contém "*null" e substitui por 0
-                  .names = "presence_{.col}"))  # Cria as colunas de presença
+                  .names = "presence_{.col}")) %>%   # Cria as colunas de presença
+    mutate(
+      combination_h1 = select(., matches("^presence_KIR.*h1")) %>%  # Seleciona colunas de presença para h1
+        apply(1, paste, collapse = "-"),  # Combina valores das colunas presence_*_h1 ex: 0-1-1-1-0
+      combination_h2 = select(., matches("^presence_KIR.*h2")) %>%  # Seleciona colunas de presença para h2
+        apply(1, paste, collapse = "-")   # Combina valores das colunas presence_*_h2
+    )
 
+
+#-------------------ANALISE DOS HAPLOTIPOS + FREQUENTES
+  table_combinations_long <- table_filtered %>%
+                             select(Sample, combination_h1, combination_h2) %>%
+                             pivot_longer(cols = starts_with("combination"),
+                             names_to = "Haplo",  #antes tinha h1 e h2 no nome da coluna, agr viraram linhas
+                             values_to = "combination") %>% # 0-1-1-0-1
+                             mutate(Haplo = sub("combination_", "", Haplo))  # Remove "combination_" da coluna Haplo
+
+  combinations_count <- table_combinations_long %>%
+                        count(combination) %>%
+                        arrange(desc(n))  # Ordenar pelas combinações mais frequentes
+
+
+  gene_order <- c("KIR3DL3", "KIR2DS2", "KIR2DL2", "KIR2DL3", "KIR2DS3",
+                  "KIR2DP1", "KIR2DL1", "KIR3DP1", "KIR2DL4", "KIR3DL1",
+                  "KIR3DS1", "KIR2DS5", "KIR2DS1", "KIR2DS4", "KIR3DL2",
+                  "KIR2DL5A", "KIR2DL5B")
+
+  # Adicionar uma nova coluna indicando os genes presentes
+  combinations_count <- combinations_count %>%
+                        rowwise() %>%
+                        mutate(
+                               GenesPresent = paste0(
+                               gene_order[which(strsplit(combination, "-")[[1]] == "1")],
+                               collapse = ", "
+                                  )
+                         ) %>%
+                        ungroup()
+
+
+
+#-----------------------------------------------TABELAS DE PRESENCA/AUSENCIA E ALELOS DE CADA UMA DAS AMOSTRAS
   # Transformando para o formato longo
   presence_long <- table_filtered %>%
     select(Sample, matches("presence_KIR.*_h[12]")) %>%  # Seleciona as colunas de presença/ausência
@@ -85,7 +124,9 @@ prepared_data <- function(input_file)
 
   combined_data <- left_join(presence_long, Alleles_long, by = c("Sample", "Gene", "Haplo"))
   rm(table, table_filtered, presence_long, Alleles_long)
+
   return(combined_data)
+  return(combinations_count)
 
 }
 map_gene_to_xpos <- function(genes) {
