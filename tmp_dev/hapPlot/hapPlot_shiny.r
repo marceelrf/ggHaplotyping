@@ -112,24 +112,25 @@ map_gene_to_xpos <- function(genes) {
 }
 
 gerar_grafico <- function(combined_data, grafico_tipo, selected_samples) {
-  # Certifique-se de que map_gene_to_xpos está no mesmo escopo
+  # Manipulação dos dados
   plot_data_samples <- combined_data %>%
     filter(Sample %in% selected_samples) %>%
     mutate(
       Gene_Haplo = paste(Gene, Haplo, sep = "_"),
-      xpos = map_gene_to_xpos(Gene),  # Chamada correta da função
+      xpos = map_gene_to_xpos(Gene),  # Correção da chamada para map_gene_to_xpos
       start = xpos,
       end = xpos + 1
     ) %>%
     mutate(Gene = factor(Gene, levels = unique(Gene)))
   
-
-  #---------GRAFICOS
+  # Criação do gráfico
   if (grafico_tipo == "All KIR Genes - Presence") {
     plot <- plot_data_samples %>%
       filter(Presence == 1) %>%
-      mutate(Haplo = ifelse(grepl("h1", Gene_Haplo), "H1", "H2"),
-             Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%
+      mutate(
+        Haplo = ifelse(grepl("h1", Gene_Haplo), "H1", "H2"),
+        Sample_Haplo = paste(Sample, Haplo, sep = " - ")
+      ) %>%
       ggplot(aes(xmin = start, xmax = end, y = Sample, fill = Gene)) +
       geom_segment(aes(x = 0.9, xend = 27.5), color = "black", size = 0.5) +
       geom_rect(aes(xmin = start - 0.2, xmax = end + 0.2,
@@ -153,15 +154,34 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples) {
   } else if (grafico_tipo == "All KIR Genes - Alleles") {
     plot <- plot_data_samples %>%
       filter(Presence == 1) %>%
-      mutate(Haplo = ifelse(grepl("h1", Gene_Haplo), "H1", "H2"),
-             Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%
+      mutate(
+        Haplo = ifelse(grepl("h1", Gene_Haplo), "H1", "H2"),
+        Sample_Haplo = paste(Sample, Haplo, sep = " - ")
+      ) %>%
       ggplot(aes(xmin = start, xmax = end, y = Sample, fill = Gene)) +
       geom_segment(aes(x = 0.9, xend = 27.5), color = "black", size = 0.5) +
       geom_rect(aes(xmin = start - 0.2, xmax = end + 0.2,
                     ymin = as.numeric(Sample) - 0.01,
                     ymax = as.numeric(Sample) + 0.01),
                 color = "black", linewidth = 0.5) +
-      geom_text(aes(x = (start + end) / 2, y = as.numeric(Sample), label = Allele))
+      geom_text(aes(x = (start + end) / 2,  # Ajustando a posição do texto
+                    y = as.numeric(Sample),
+                    label = Allele),
+                size = 4, color = "black") +  # Ajuste no tamanho e cor do texto
+      facet_wrap(Sample ~ Haplo, scales = "free_y", ncol = 1) +
+      scale_fill_manual(values = gene_colors) +
+      theme_minimal() +
+      labs(x = "Genes", y = "Sample", title = "") +
+      theme(panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            axis.title = element_blank(),
+            axis.text = element_blank(),
+            legend.title = element_blank(),
+            legend.position = "top",
+            strip.text = element_blank(),
+            legend.text = element_text(size = 18),
+            plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
+      geom_label(aes(x = -1.5, label = Sample_Haplo), size = 3.8, fill = NA, nudge_x = 1.3)
   }
   
   return(plot)
