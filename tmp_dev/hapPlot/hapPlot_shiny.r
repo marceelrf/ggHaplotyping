@@ -88,115 +88,58 @@ prepared_data <- function(input_file)
   return(combined_data)
 
 }
+map_gene_to_xpos <- function(genes) {
+  case_when(
+    genes == "KIR3DL3" ~ 1,
+    genes == "KIR2DS2" ~ 3.0,
+    genes == "KIR2DL2" ~ 5.0,
+    genes == "KIR2DL3" ~ 5.0,  # Mesmo valor que KIR2DL2
+    genes == "KIR2DL5B" ~ 7.0,
+    genes == "KIR2DS3" ~ 9.0,
+    genes == "KIR2DS5" ~ 9.0,  # Mesmo valor que KIR2DS3
+    genes == "KIR2DP1" ~ 11.0,
+    genes == "KIR2DL1" ~ 13.0,
+    genes == "KIR3DP1" ~ 15.0,
+    genes == "KIR2DL4" ~ 17.0,
+    genes == "KIR3DL1" ~ 19.0,
+    genes == "KIR3DS1" ~ 21.0,
+    genes == "KIR2DL5A" ~ 23.0,
+    genes == "KIR2DS4" ~ 25.0,
+    genes == "KIR2DS1" ~ 25.0,  # Mesmo valor que KIR2DS4
+    genes == "KIR3DL2" ~ 27.0,
+    TRUE ~ NA_real_
+  )
+}
 
-
-gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
-
-{
+gerar_grafico <- function(combined_data, grafico_tipo, selected_samples) {
+  # Certifique-se de que map_gene_to_xpos está no mesmo escopo
   plot_data_samples <- combined_data %>%
     filter(Sample %in% selected_samples) %>%
-    mutate(Gene_Haplo = paste(Gene, Haplo, sep = "_")) %>%
     mutate(
-      xpos = case_when(
-        Gene == "KIR3DL3" ~ 1,
-        Gene == "KIR2DS2" ~ 3.0,
-        Gene == "KIR2DL2" ~ 5.0,
-        Gene == "KIR2DL3" ~ 5.0,  # Mesmo valor que KIR2DL2
-        Gene == "KIR2DL5B" ~ 7.0,
-        Gene == "KIR2DS3" ~ 9.0,
-        Gene == "KIR2DS5" ~ 9.0,  # Mesmo valor que KIR2DS3
-        Gene == "KIR2DP1" ~ 11.0,
-        Gene == "KIR2DL1" ~ 13.0,
-        Gene == "KIR3DP1" ~ 15.0,
-        Gene == "KIR2DL4" ~ 17.0,
-        Gene == "KIR3DL1" ~ 19.0,
-        Gene == "KIR3DS1" ~ 21.0,
-        Gene == "KIR2DL5A" ~ 23.0,
-        Gene == "KIR2DS4" ~ 25.0,
-        Gene == "KIR2DS1" ~ 25.0,  # Mesmo valor que KIR2DS4
-        Gene == "KIR3DL2" ~ 27.0,
-        TRUE ~ NA_real_
-      ),
+      Gene_Haplo = paste(Gene, Haplo, sep = "_"),
+      xpos = map_gene_to_xpos(Gene),  # Chamada correta da função
       start = xpos,
       end = xpos + 1
     ) %>%
     mutate(Gene = factor(Gene, levels = unique(Gene)))
+  
 
   #---------GRAFICOS
   if (grafico_tipo == "All KIR Genes - Presence") {
     plot <- plot_data_samples %>%
       filter(Presence == 1) %>%
-      mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
-                            "H1", "H2"),
+      mutate(Haplo = ifelse(grepl("h1", Gene_Haplo), "H1", "H2"),
              Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%
-      ggplot(aes(xmin = start,
-                 xmax = end,
-                 y = Sample,
-                 fill = Gene)) +
-      geom_segment(aes(x = 0.9, xend = 27.5), #linha para conectar as caixinhas
-                   color = "black", size = 0.5) +
-      geom_rect(aes(xmin = start - 0.2,
-                    xmax = end + 0.2,
+      ggplot(aes(xmin = start, xmax = end, y = Sample, fill = Gene)) +
+      geom_segment(aes(x = 0.9, xend = 27.5), color = "black", size = 0.5) +
+      geom_rect(aes(xmin = start - 0.2, xmax = end + 0.2,
                     ymin = as.numeric(Sample) - 0.01,
                     ymax = as.numeric(Sample) + 0.01),
-                color = "black",
-                linewidth = 0.5) +
-      facet_wrap(Sample ~ Haplo,
-                 scales = "free_y",
-                 ncol = 1) +
+                color = "black", linewidth = 0.5) +
+      facet_wrap(Sample ~ Haplo, scales = "free_y", ncol = 1) +
       scale_fill_manual(values = gene_colors) +
       theme_minimal() +
-      guides(fill = guide_legend(nrow = 2), ncol = 3) +   #ajustar a legenda e controla a ordem da legenda - fill = guide_legend(nrow = 1), ncol = 0 ncol é a quantidade de colunas dividindo os itens da legenda, nrow são as linhas
-      labs(x = "Genes",
-           y = "Sample",
-           title = "") +
-      theme(panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank(),
-            axis.title = element_blank(),
-            axis.text = element_blank(),
-            legend.title = element_blank(),
-            legend.position = "top", #legenda acima do grafico
-            strip.text = element_blank(),   #não aparece o nome das facetas
-            legend.text = element_text(size = 18),
-            plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
-      geom_label(aes(x = -1.5,
-                     label = Sample_Haplo),
-                 size = 3.8,
-                 fill = NA,
-                 show.legend = FALSE,
-                 nudge_x = 1.3)
-  } else if (grafico_tipo == "All KIR Genes - Alleles") {
-    plot <- plot_data_samples %>%
-      filter(Presence == 1) %>%
-      mutate(Haplo = ifelse(grepl("h1", Gene_Haplo),
-                            "H1", "H2"),
-             Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%
-      ggplot(aes(xmin = start,
-                 xmax = end,
-                 y = Sample,
-                 fill = Gene)) +
-      geom_segment(aes(x = 0.9, xend = 27.5),
-                   color = "black", size = 0.5) +
-      geom_rect(aes(xmin = start - 0.2,
-                    xmax = end + 0.2,
-                    ymin = as.numeric(Sample) - 0.01,
-                    ymax = as.numeric(Sample) + 0.01),
-                color = "black",
-                linewidth = 0.5) +
-      geom_text(aes(x = (start + end) / 2,  # Posiciona o texto no centro do retângulo
-                    y = as.numeric(Sample),
-                    label = Allele),
-                size = 4,  # Ajusta o tamanho do texto
-                color = "black") +  # Define a cor do texto
-      facet_wrap(Sample ~ Haplo,
-                 scales = "free_y",
-                 ncol = 1) +
-      scale_fill_manual(values = gene_colors) +
-      theme_minimal() +
-      guides(fill = guide_legend(nrow = 2), ncol = 2) +
-      labs(x = "Genes",
-           y = "Sample",
-           title = "") +
+      labs(x = "Genes", y = "Sample", title = "") +
       theme(panel.grid.major = element_blank(),
             panel.grid.minor = element_blank(),
             axis.title = element_blank(),
@@ -206,45 +149,31 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples)
             strip.text = element_blank(),
             legend.text = element_text(size = 18),
             plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
-      geom_label(aes(x = -1.5,
-                     label = Sample_Haplo),
-                 size = 3.8,
-                 fill = NA,
-                 show.legend = FALSE,
-                 nudge_x = 1.3)
+      geom_label(aes(x = -1.5, label = Sample_Haplo), size = 3.8, fill = NA, nudge_x = 1.3)
+  } else if (grafico_tipo == "All KIR Genes - Alleles") {
+    plot <- plot_data_samples %>%
+      filter(Presence == 1) %>%
+      mutate(Haplo = ifelse(grepl("h1", Gene_Haplo), "H1", "H2"),
+             Sample_Haplo = paste(Sample, Haplo, sep = " - ")) %>%
+      ggplot(aes(xmin = start, xmax = end, y = Sample, fill = Gene)) +
+      geom_segment(aes(x = 0.9, xend = 27.5), color = "black", size = 0.5) +
+      geom_rect(aes(xmin = start - 0.2, xmax = end + 0.2,
+                    ymin = as.numeric(Sample) - 0.01,
+                    ymax = as.numeric(Sample) + 0.01),
+                color = "black", linewidth = 0.5) +
+      geom_text(aes(x = (start + end) / 2, y = as.numeric(Sample), label = Allele))
   }
-
+  
   return(plot)
-
 }
 
 #-----------------Telomeric e Centromeric
-type_hap <- function(combined_data, haplotipo_tipo, selected_samples)
-{
+type_hap <- function(combined_data, haplotipo_tipo, selected_samples) {
   plot_data_samples <- combined_data %>%
     filter(Sample %in% selected_samples) %>%
-    mutate(Gene_Haplo = paste(Gene, Haplo, sep = "_")) %>%
     mutate(
-      xpos = case_when(
-        Gene == "KIR3DL3" ~ 1,
-        Gene == "KIR2DS2" ~ 3.0,
-        Gene == "KIR2DL2" ~ 5.0,
-        Gene == "KIR2DL3" ~ 5.0,  # Mesmo valor que KIR2DL2
-        Gene == "KIR2DL5B" ~ 7.0,
-        Gene == "KIR2DS3" ~ 9.0,
-        Gene == "KIR2DS5" ~ 9.0,  # Mesmo valor que KIR2DS3
-        Gene == "KIR2DP1" ~ 11.0,
-        Gene == "KIR2DL1" ~ 13.0,
-        Gene == "KIR3DP1" ~ 15.0,
-        Gene == "KIR2DL4" ~ 17.0,
-        Gene == "KIR3DL1" ~ 19.0,
-        Gene == "KIR3DS1" ~ 21.0,
-        Gene == "KIR2DL5A" ~ 23.0,  # KIR2DL5AB repetido após KIR3DS1
-        Gene == "KIR2DS4" ~ 25.0,
-        Gene == "KIR2DS1" ~ 25.0,  # Mesmo valor que KIR2DS4
-        Gene == "KIR3DL2" ~ 27.0,
-        TRUE ~ NA_real_
-      ),
+      Gene_Haplo = paste(Gene, Haplo, sep = "_"),
+      xpos = map_gene_to_xpos(Gene),  # Chamada correta da função
       start = xpos,
       end = xpos + 1
     ) %>%
