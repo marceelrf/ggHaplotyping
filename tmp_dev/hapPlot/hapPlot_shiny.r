@@ -122,7 +122,7 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples) {
       end = xpos + 1
     ) %>%
     mutate(Gene = factor(Gene, levels = unique(Gene)))
-  
+
   # Criação do gráfico
   if (grafico_tipo == "All KIR Genes - Presence") {
     plot <- plot_data_samples %>%
@@ -139,6 +139,7 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples) {
                 color = "black", linewidth = 0.5) +
       facet_wrap(Sample ~ Haplo, scales = "free_y", ncol = 1) +
       scale_fill_manual(values = gene_colors) +
+      guides(fill = guide_legend(nrow = 2), ncol = 2) +
       theme_minimal() +
       labs(x = "Genes", y = "Sample", title = "") +
       theme(panel.grid.major = element_blank(),
@@ -183,7 +184,7 @@ gerar_grafico <- function(combined_data, grafico_tipo, selected_samples) {
             plot.margin = margin(t = 5, r = 10, b = 5, l = 20)) +
       geom_label(aes(x = -1.5, label = Sample_Haplo), size = 3.8, fill = NA, nudge_x = 1.3)
   }
-  
+
   return(plot)
 }
 
