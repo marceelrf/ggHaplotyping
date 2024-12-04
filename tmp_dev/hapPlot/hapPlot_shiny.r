@@ -84,7 +84,7 @@ prepared_data <- function(input_file)
     mutate(Allele = str_remove(Allele, "^\\w+")) # Remove o nome do gene no início
 
   combined_data <- left_join(presence_long, Alleles_long, by = c("Sample", "Gene", "Haplo"))
-
+  rm(table, table_filtered, presence_long, Alleles_long)
   return(combined_data)
 
 }
